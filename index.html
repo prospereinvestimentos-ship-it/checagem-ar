@@ -2003,10 +2003,19 @@ async function loadTitulosSheets(){
   const card=document.getElementById('uc-tit2');
   try{
     if(el)el.textContent='Carregando...';
-    // Verificar metadado primeiro
+    // Verificar metadado
     let meta=[];
     try{meta=await sGet('TitulosAbertoAR_Meta!A1:C1');}catch(e){}
-    const rows=await sGet('TitulosAbertoAR!A:ZZ');
+    if(!meta||!meta[0]||!meta[0][0]){
+      if(el)el.textContent='Carregar .xlsx';
+      return false;
+    }
+    // Carregar em lotes para evitar timeout do Apps Script
+    const GAS='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+    if(el)el.textContent='Carregando dados...';
+    const resp=await fetch(GAS+'?sheet=TitulosAbertoAR');
+    if(!resp.ok){if(el)el.textContent='Carregar .xlsx';return false;}
+    const rows=await resp.json();
     if(!rows||rows.length<2){
       if(el)el.textContent='Carregar .xlsx';
       return false;
@@ -2020,13 +2029,10 @@ async function loadTitulosSheets(){
     TITS=raw;
     TITS_ELEG=filtrarEleg(raw);
     if(card)card.classList.add('done');
-    let subtext=TITS_ELEG.length+' elegiveis';
-    if(meta&&meta[0]&&meta[0][0]){
-      const d=new Date(meta[0][1]);
-      subtext+=` · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
-    }
+    const d=new Date(meta[0][1]);
+    const subtext=`${TITS_ELEG.length} elegiveis · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
     if(el){el.textContent=subtext;el.style.color='var(--green)';}
-    console.log('TitulosAbertoAR carregado do Sheets:',raw.length,'linhas');
+    console.log('TitulosAbertoAR carregado:',raw.length,'linhas');
     if(TITS_ELEG.length>0)buildAll();
     return true;
   }catch(e){
