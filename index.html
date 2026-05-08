@@ -370,13 +370,6 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         </div>
       </div>
       <div id="hist-body">
-        <!-- Filtros -->
-        <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
-          <select id="hist-grp-filter" onchange="renderContatos();renderLembretes();renderCal()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
-            <option value="">Todos os grupos</option>
-          </select>
-          <span style="font-size:11px;color:var(--text2)" id="hist-stats"></span>
-        </div>
         <!-- Filtro de grupo -->
         <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
           <select id="hist-grp-filter" onchange="renderContatos();renderLembretes();renderCal();renderGraficoContatos()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
@@ -574,8 +567,8 @@ let pinBuffer='',calYear=new Date().getFullYear(),calMonth=new Date().getMonth()
 let obsContext=null;
 let _alertMap=[];
 
-const ROLE_COLORS={admin:'#f5a623',supervisora:'#5b8af5',operadora:'#2dd4a0'};
-const ROLE_LABELS={admin:'Admin',supervisora:'Supervisora',operadora:'Operadora'};
+const ROLE_COLORS={admin:'#f5a623',supervisora:'#5b8af5',operadora:'#2dd4a0',consulta:'#9294a0'};
+const ROLE_LABELS={admin:'Admin',supervisora:'Supervisora',operadora:'Operadora',consulta:'Consulta'};
 const HCL={COM:'bg',ISE:'bb',SER:'ba',SC:'ba',FRA:'br',RET:'bb',NE:'ba',DEV:'br',NPT:'br',LSC:'br',PC:'ba',REC:'br',SUB:'bgr',CONFIRMADO:'bg'};
 
 // ── SHEETS ──
@@ -691,9 +684,15 @@ function enterApp(){
 }
 function applyPerms(){
   const p=currentUser.perfil;
-  document.getElementById('nav-config').style.display=p==='operadora'?'none':'flex';
+  const isConsulta=p==='consulta';
+  document.getElementById('nav-config').style.display=(p==='operadora'||isConsulta)?'none':'flex';
   document.getElementById('nav-usuarios').style.display=p==='admin'?'flex':'none';
-  document.getElementById('nav-cfg-sec').style.display=p==='operadora'?'none':'block';
+  document.getElementById('nav-cfg-sec').style.display=(p==='operadora'||isConsulta)?'none':'block';
+  // Esconder botões de registro para consulta
+  const btnRegistrar=document.querySelector('[onclick="openNovoContato()"]');
+  const btnLembrete=document.querySelector('[onclick="openNovoLembrete()"]');
+  if(btnRegistrar)btnRegistrar.style.display=isConsulta?'none':'';
+  if(btnLembrete)btnLembrete.style.display=isConsulta?'none':'';
 }
 function logout(){currentUser=null;pinBuffer='';document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.querySelectorAll('.user-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('pin-area').style.display='none';}
 
@@ -1668,6 +1667,7 @@ function openNovoLembrete(){
 }
 
 async function salvarContato(){
+  if(currentUser.perfil==='consulta'){alert('Sem permissão.');return;}
   const cedente=document.getElementById('ct-cedente').value.trim();
   const obs=document.getElementById('ct-obs').value.trim();
   const data=document.getElementById('ct-data').value;
@@ -1682,6 +1682,7 @@ async function salvarContato(){
 }
 
 async function salvarLembrete(){
+  if(currentUser.perfil==='consulta'){alert('Sem permissão.');return;}
   const desc=document.getElementById('lb-desc').value.trim();
   const data=document.getElementById('lb-data').value;
   const prior=document.getElementById('lb-prior').value;
@@ -1778,6 +1779,7 @@ function renderObsBody(){
     </div>`).join(''):'<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:12px">Nenhuma observação ainda</div>';
 }
 async function addObs(){
+  if(currentUser.perfil==='consulta'){alert('Sem permissão para registrar observações.');return;}
   const txt=document.getElementById('obs-input').value.trim();
   if(!txt||!obsContext)return;
   const obs={texto:txt,usuario:currentUser.nome,data:new Date().toISOString()};
@@ -1885,7 +1887,7 @@ function renderUsuariosPage(){
         <div><div style="font-size:13px;font-weight:500">${u.nome}</div><div style="font-size:11px;color:var(--text2)">${ROLE_LABELS[u.perfil]}</div></div>
       </div>
       <div class="user-field"><label>Nome</label><input type="text" value="${u.nome}" id="un-${i}"></div>
-      <div class="user-field"><label>Perfil</label><select id="up-${i}"><option value="admin" ${u.perfil==='admin'?'selected':''}>Admin</option><option value="supervisora" ${u.perfil==='supervisora'?'selected':''}>Supervisora</option><option value="operadora" ${u.perfil==='operadora'?'selected':''}>Operadora</option></select></div>
+      <div class="user-field"><label>Perfil</label><select id="up-${i}"><option value="admin" ${u.perfil==='admin'?'selected':''}>Admin</option><option value="supervisora" ${u.perfil==='supervisora'?'selected':''}>Supervisora</option><option value="operadora" ${u.perfil==='operadora'?'selected':''}>Operadora</option><option value="consulta" ${u.perfil==='consulta'?'selected':''}>Consulta</option></select></div>
       <div class="user-field"><label>PIN (4 dígitos)</label><input type="password" maxlength="4" value="${u.pin}" id="upin-${i}" placeholder="••••"></div>
       <div class="user-actions">
         <button class="btn-sm primary" onclick="saveUser(${i})">Salvar</button>
