@@ -620,7 +620,7 @@ function renderLoginUsers(){document.getElementById('user-select').innerHTML=USE
 let selIdx=null;
 function selectUser(i){selIdx=i;document.querySelectorAll('.user-btn').forEach((b,j)=>b.classList.toggle('selected',i===j));pinBuffer='';renderPinDots();document.getElementById('pin-area').style.display='block';document.getElementById('pin-error').textContent='';document.getElementById('pin-pad').innerHTML=['1','2','3','4','5','6','7','8','9','←','0','✓'].map(k=>`<button class="pin-key" onclick="pinKey('${k}')">${k}</button>`).join('');}
 function renderPinDots(){document.getElementById('pin-dots').innerHTML=[0,1,2,3].map(i=>`<div class="pin-dot ${i<pinBuffer.length?'filled':''}"></div>`).join('');}
-function pinKey(k){if(k==='←')pinBuffer=pinBuffer.slice(0,-1);else if(k==='✓'){checkPin();return;}else if(pinBuffer.length<4)pinBuffer+=k;renderPinDots();if(pinBuffer.length===4)checkPin();}
+function pinKey(k){if(k==='←'){pinBuffer=pinBuffer.slice(0,-1);renderPinDots();}else if(k==='✓'){checkPin();}else if(pinBuffer.length<4){pinBuffer+=k;renderPinDots();if(pinBuffer.length===4)setTimeout(checkPin,100);}}
 function checkPin(){const u=USERS[selIdx];if(pinBuffer===u.pin){currentUser=u;enterApp();}else{document.getElementById('pin-error').textContent='PIN incorreto.';pinBuffer='';renderPinDots();}}
 
 async function loadCedentesSheets(){
