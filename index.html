@@ -213,6 +213,18 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 .divider{height:1px;background:var(--border);margin:1rem 0}
+.task-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start}
+.task-item.urgente{border-left:3px solid var(--red)}
+.task-item.normal{border-left:3px solid var(--blue)}
+.task-item.done{opacity:.5}
+.task-check{width:16px;height:16px;flex-shrink:0;cursor:pointer;margin-top:2px}
+.contato-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px}
+.contato-item-hdr{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.contato-cedente{font-size:12px;font-weight:500}
+.contato-meta{font-size:10px;color:var(--text2)}
+.contato-obs{font-size:12px;color:var(--text);line-height:1.5}
+.hist-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:12px;color:var(--text);font-family:inherit}
+.hist-input:focus{outline:none;border-color:var(--green)}
 </style>
 </head>
 <body>
@@ -319,7 +331,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
           <div class="filters">
             <select id="f-hist" onchange="renderOps()"><option value="">Todos os históricos</option></select>
             <select id="f-conf" onchange="renderOps()"><option value="">Todos (CONF)</option><option value="C">C — Confirmado</option><option value="P">P — Pendente</option></select>
-            <select id="f-prazo" onchange="renderOps()"><option value="">Todos os prazos</option><option value="ok">Dentro do prazo</option><option value="alerta">Alerta prazo</option><option value="vencido">Prazo vencido</option><option value="sem">Sem prazo</option></select>
+            <select id="f-prazo" onchange="renderOps()"><option value="">Todos os prazos</option><option value="ok">Dentro do prazo</option><option value="alerta">Alerta prazo</option><option value="vencido">Prazo vencido</option><option value="sem">Sem prazo</option><option value="isento">Isentos</option></select>
             <select id="f-alerta" onchange="renderOps()"><option value="">Todos</option><option value="sim">Com alerta</option><option value="nao">Sem alerta</option></select>
             <select id="f-ctrl" onchange="renderOps()"><option value="">Todos os controladores</option></select>
             <select id="f-grp" onchange="renderOps()"><option value="">Todos os grupos</option></select>
@@ -349,26 +361,108 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
 
     <!-- HISTÓRICO -->
     <div class="page" id="page-historico">
-      <div class="page-header"><div><div class="page-title">Histórico diário</div><div class="page-sub">Calendário e linha do tempo do que foi feito</div></div></div>
-      <div id="hist-empty" class="empty">Carregue as planilhas primeiro</div>
-      <div id="hist-body" style="display:none">
-        <div class="cal-wrap">
+      <div class="page-header">
+        <div><div class="page-title">Histórico diário</div><div class="page-sub">Contatos, lembretes e calendário</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="hist-ctrl-filter" onchange="renderHistorico()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
+            <option value="">Todos os controladores</option>
+          </select>
+        </div>
+      </div>
+      <div id="hist-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem;margin-bottom:1.25rem">
+          <!-- CALENDÁRIO -->
           <div class="section" style="margin-bottom:0">
             <div class="section-hdr">
-              <div style="display:flex;align-items:center;gap:10px">
+              <div style="display:flex;align-items:center;gap:8px">
                 <button onclick="navCal(-1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px">‹</button>
                 <div class="section-title" id="cal-month-label"></div>
                 <button onclick="navCal(1)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px">›</button>
               </div>
             </div>
-            <div class="section-body">
+            <div class="section-body" style="padding:.75rem">
               <div class="cal-grid" id="cal-grid"></div>
             </div>
           </div>
+          <!-- CONTATOS DO DIA -->
           <div class="section" style="margin-bottom:0">
-            <div class="section-hdr"><div class="section-title" id="tl-title">Atividade recente</div></div>
-            <div class="section-body" style="padding:.75rem"><div class="timeline" id="timeline"></div></div>
+            <div class="section-hdr" style="justify-content:space-between">
+              <div class="section-title" id="tl-title">Contatos recentes</div>
+              <button class="btn-save" onclick="openNovoContato()" style="font-size:11px;padding:4px 10px">+ Registrar</button>
+            </div>
+            <div style="padding:.75rem;max-height:400px;overflow-y:auto" id="contatos-lista"></div>
           </div>
+          <!-- LEMBRETES -->
+          <div class="section" style="margin-bottom:0">
+            <div class="section-hdr" style="justify-content:space-between">
+              <div class="section-title">Lembretes</div>
+              <button class="btn-save" onclick="openNovoLembrete()" style="font-size:11px;padding:4px 10px">+ Lembrete</button>
+            </div>
+            <div style="padding:.75rem;max-height:400px;overflow-y:auto" id="lembretes-lista"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL NOVO CONTATO -->
+    <div class="obs-modal" id="contato-modal">
+      <div class="obs-card" style="width:480px">
+        <div class="obs-card-hdr">
+          <div class="obs-card-title">Agenda do dia</div>
+          <button class="obs-close" onclick="document.getElementById('contato-modal').classList.remove('open')">×</button>
+        </div>
+        <div class="obs-body" style="padding:1.25rem;display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Grupo / Cedente</div>
+            <select class="hist-input" id="ct-cedente"></select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Observação</div>
+            <textarea class="hist-input" id="ct-obs" rows="3" placeholder="Ex: Liguei, enviamos email, aguardando retorno..."></textarea>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Data</div>
+            <input class="hist-input" type="date" id="ct-data">
+          </div>
+          <input type="hidden" id="ct-ctrl">
+        </div>
+        <div class="obs-input-wrap" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="obs-btn" onclick="document.getElementById('contato-modal').classList.remove('open')">Cancelar</button>
+          <button class="obs-send" onclick="salvarContato()">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL NOVO LEMBRETE -->
+    <div class="obs-modal" id="lembrete-modal">
+      <div class="obs-card" style="width:480px">
+        <div class="obs-card-hdr">
+          <div class="obs-card-title">Novo lembrete</div>
+          <button class="obs-close" onclick="document.getElementById('lembrete-modal').classList.remove('open')">×</button>
+        </div>
+        <div class="obs-body" style="padding:1.25rem;display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Descrição</div>
+            <input class="hist-input" id="lb-desc" placeholder="Ex: Ligar para FURNAX na quinta">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Data limite</div>
+              <input class="hist-input" type="date" id="lb-data">
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Prioridade</div>
+              <select class="hist-input" id="lb-prior">
+                <option value="normal">Normal</option>
+                <option value="urgente">🔴 Urgente</option>
+              </select>
+            </div>
+            <input type="hidden" id="lb-ctrl">
+          </div>
+        </div>
+        <div class="obs-input-wrap" style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="obs-btn" onclick="document.getElementById('lembrete-modal').classList.remove('open')">Cancelar</button>
+          <button class="obs-send" onclick="salvarLembrete()">Salvar lembrete</button>
         </div>
       </div>
     </div>
@@ -392,8 +486,8 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         </div>
         <div class="tab-c active" id="ctab-prazos">
           <div class="section"><div class="section-body">
-            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 70px 36px">
-              <span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span></span>
+            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 70px 80px 36px">
+              <span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>Isento</span><span></span>
             </div>
             <div id="cfg-prazos-rows"></div>
             <button class="btn-add" onclick="addPrazoRow()">+ Adicionar grupo</button>
@@ -561,7 +655,9 @@ function enterApp(){
   document.getElementById('sb-name').textContent=currentUser.nome;
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   applyPerms();
-  loadCedentesAuto();
+  loadCedentesAuto().then(()=>{
+    loadTitulosSheets();
+  });
   loadConfig();
   loadObs();
 }
@@ -583,7 +679,7 @@ function goPage(p,el){
   if(p==='usuarios')renderUsuariosPage();
   if(p==='controladores'&&TITS_ELEG.length)renderControladores();
   if(p==='alertas'&&TITS_ELEG.length)renderAlertas();
-  if(p==='historico')renderHistorico();
+  if(p==='historico'){renderHistorico();}
 }
 function switchCfgTab(tab,el){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-c').forEach(c=>c.classList.remove('active'));el.classList.add('active');document.getElementById('ctab-'+tab).classList.add('active');}
 
@@ -652,8 +748,9 @@ function loadFile(inp,tipo){
       TITS_ELEG=filtrarEleg(raw);
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
+      // Salvar titulos no Sheets em background
+      salvarTitulosSheets(raw,currentUser?currentUser.nome:'');
     }
-    // Roda buildAll sempre que titulos estiverem carregados
     if(TITS_ELEG.length>0) buildAll();
   };
   reader.readAsArrayBuffer(file);
@@ -674,6 +771,7 @@ function filtrarEleg(rows){
 }
 
 const GAS_URL='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+const GAS_URL_PATCH=GAS_URL;
 
 // Carrega cedentes automaticamente do Apps Script
 async function loadCedentesAuto(){
@@ -688,6 +786,9 @@ async function loadCedentesAuto(){
     const tot=Object.keys(CEDS).length;
     if(el){el.textContent=tot+' cedentes';el.style.color='var(--green)';document.getElementById('uc-ced2').classList.add('done');}
     console.log('Cedentes carregados:',tot);
+    // Marcar PROSPER como isento automaticamente
+    const prospCpf=normCPF('36.213.493/0001-95');
+    if(CEDS[prospCpf])PRAZOS_GRUPO[CEDS[prospCpf].grupo]=Object.assign(PRAZOS_GRUPO[CEDS[prospCpf].grupo]||{pedido:'',entrega:''},{ isento:true });
     if(TITS_ELEG.length>0)buildAll();
   }catch(e){
     console.error('loadCedentesAuto erro:',e);
@@ -791,8 +892,13 @@ function getCed(r){return CEDS[normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))]||{operad
 function getPrazoGrupo(grupo){return PRAZOS_GRUPO[grupo]||null;}
 function getRegra(cpf){return REGRAS_CED[normCPF(cpf)]||null;}
 
+function isGrupoIsento(grupo){
+  const pr=PRAZOS_GRUPO[grupo];
+  return pr&&pr.isento;
+}
 function prazoSt(r){
   const ci=getCed(r);
+  if(isGrupoIsento(ci.grupo))return'isento';
   const pr=getPrazoGrupo(ci.grupo);
   if(!pr||(!pr.pedido&&!pr.entrega))return'sem';
   const dp=diasD(r['DATA EMISSÃO']||gc(r,10));
@@ -818,6 +924,9 @@ function calcAlertMap(){
   });
   return TITS_ELEG.map(r=>{
     if(String(r['CONF']||gc(r,1)).trim().toUpperCase()!=='P')return{alertas:[],nivel:'ok'};
+    // Isentos nao geram alertas
+    const ciAlert=getCed(r);
+    if(isGrupoIsento(ciAlert.grupo))return{alertas:[],nivel:'ok'};
     const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
     const cpfS=normCPF(gc(r,5)||'');
     const val=parseVal(r['VALOR(R$)']||gc(r,18));
@@ -838,7 +947,10 @@ function calcAlertMap(){
 
 // ── BUILD ALL ──
 function buildAll(){
-  Object.entries(CEDS).forEach(([cpf,c])=>{if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:''};});
+  // Adicionar grupos novos sem sobrescrever os que ja tem configuracao
+  Object.entries(CEDS).forEach(([cpf,c])=>{
+    if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:'',isento:false};
+  });
   _alertMap=calcAlertMap();
   _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
   const nAlert=_alertMap.filter(a=>a.nivel==='bloqueio').length;
@@ -886,7 +998,7 @@ function renderDash(){
   const recompra=notas.filter(({r})=>hist(r)==='REC').length;
 
   // Prazo por nota unica
-  const ps={ok:0,alerta:0,vencido:0,sem:0};
+  const ps={ok:0,alerta:0,vencido:0,sem:0,isento:0};
   notas.forEach(({r})=>ps[prazoSt(r)]++);
 
   // Alertas por nota unica (usa o idx da row representativa)
@@ -969,7 +1081,7 @@ function renderDash(){
   </div>
   <div class="section" style="margin-bottom:0">
     <div class="section-hdr"><div class="section-title">Situacao dos prazos (por nota)</div></div>
-    <div class="section-body">${mkDonut('d2',[ps.ok,ps.alerta,ps.vencido,ps.sem],['#2dd4a0','#f5a623','#f05252','#5a5c68'],['No prazo','Alerta','Vencido','Sem config.'])}</div>
+    <div class="section-body">${mkDonut('d2',[ps.ok,ps.alerta,ps.vencido,ps.isento,ps.sem],['#2dd4a0','#f5a623','#f05252','#5b8af5','#5a5c68'],['No prazo','Alerta','Vencido','Isento','Sem config.'])}</div>
   </div>
 </div>
 <div class="grid2" style="margin-bottom:1.25rem">
@@ -1016,7 +1128,7 @@ function filterCedFora(){
   const lista=window._cedForaList||[];
   const filtrado=f?lista.filter(c=>c.controlador===f):lista;
   document.getElementById('dash-fora-body').innerHTML=filtrado.map(c=>`<tr>
-    <td>${c.novo?'⭐':'—'}</td>
+    <td>${c.novo?'<span style="color:#a78bfa;font-size:14px">★</span>':'—'}</td>
     <td title="${c.nome}">${c.nome}</td>
     <td>${c.controlador}</td>
     <td title="${c.grupo}">${c.grupo}</td>
@@ -1031,7 +1143,6 @@ function renderControladores(){
   const notas=Object.values(_NOTAS_UNICAS);
   if(!notas.length){document.getElementById('ctrl-body').innerHTML='<div class="empty">Carregue as planilhas primeiro</div>';return;}
   const conf=r=>String(r['CONF']||gc(r,1)).trim().toUpperCase();
-  // So controladores com notas ativas (P ou C)
   const ctrlAtivos=new Set();
   notas.forEach(({r})=>{
     const c=conf(r);
@@ -1041,6 +1152,55 @@ function renderControladores(){
     }
   });
   if(!ctrlAtivos.size){document.getElementById('ctrl-body').innerHTML='<div class="empty">Nenhum controlador com notas ativas</div>';return;}
+  // Gráfico comparativo entre controladoras
+  const ctrlArr=[...ctrlAtivos];
+  const ctrlStats=ctrlArr.map(ctrl=>{
+    const mine=notas.filter(({r})=>getCed(r).controlador===ctrl);
+    return{
+      ctrl,
+      feito:mine.filter(({r})=>conf(r)==='C').length,
+      aFazer:mine.filter(({r})=>conf(r)==='P').length,
+      vencido:mine.filter(({r})=>prazoSt(r)==='vencido').length,
+      total:mine.length
+    };
+  });
+  const maxTotal=Math.max(...ctrlStats.map(s=>s.total))||1;
+  const grafico=`<div class="section" style="margin-bottom:1.25rem">
+    <div class="section-hdr"><div class="section-title">Comparativo entre controladoras</div>
+      <div style="display:flex;gap:12px;font-size:11px">
+        <span style="color:var(--green)">■ Feito</span>
+        <span style="color:var(--amber)">■ A fazer</span>
+        <span style="color:var(--red)">■ Prazo vencido</span>
+      </div>
+    </div>
+    <div class="section-body">
+      ${ctrlStats.map(s=>{
+        const pFeito=Math.round(s.feito/maxTotal*100);
+        const pFazer=Math.round(s.aFazer/maxTotal*100);
+        const pVenc=Math.round(s.vencido/maxTotal*100);
+        const nome=s.ctrl.split(' ')[0];
+        return`<div style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+            <span style="font-weight:500">${s.ctrl}</span>
+            <span style="color:var(--text2)">${s.feito} feito · ${s.aFazer} a fazer · ${s.vencido} vencido</span>
+          </div>
+          <div style="display:flex;gap:3px;height:18px;border-radius:4px;overflow:hidden">
+            <div style="width:${Math.max(pFeito,s.feito?1:0)}%;background:var(--green);display:flex;align-items:center;justify-content:center">
+              ${s.feito>0?`<span style="font-size:10px;color:white;font-weight:500">${s.feito}</span>`:''}
+            </div>
+            <div style="width:${Math.max(pFazer,s.aFazer?1:0)}%;background:var(--amber);display:flex;align-items:center;justify-content:center">
+              ${s.aFazer>0?`<span style="font-size:10px;color:white;font-weight:500">${s.aFazer}</span>`:''}
+            </div>
+            <div style="width:${Math.max(pVenc,s.vencido?1:0)}%;background:var(--red);display:flex;align-items:center;justify-content:center">
+              ${s.vencido>0?`<span style="font-size:10px;color:white;font-weight:500">${s.vencido}</span>`:''}
+            </div>
+            <div style="flex:1;background:var(--bg3)"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  document.getElementById('ctrl-body').innerHTML=grafico+`<div class="ctrl-grid">`;
   document.getElementById('ctrl-body').innerHTML=`<div class="ctrl-grid">${[...ctrlAtivos].map(ctrl=>{
     const mine=notas.filter(({r})=>getCed(r).controlador===ctrl);
     const tot=mine.length;if(!tot)return'';
@@ -1050,21 +1210,28 @@ function renderControladores(){
     const alrt=mine.filter(({r})=>prazoSt(r)==='alerta').length;
     const novos=mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).length;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
-    const pctFeito=tot?Math.round(feito/tot*100):0;
+    // Progresso = Feito / (Feito + A fazer) - so o que precisa ser checado
+    const pctFeito=(feito+aFazer)?Math.round(feito/(feito+aFazer)*100):0;
     const valP=mine.filter(({r})=>conf(r)==='P').reduce((s,{valorNota})=>s+valorNota,0);
-    // Prioridades: notas pendentes ordenadas por cedente novo e dias em aberto
-    const pend=mine.filter(({r})=>conf(r)==='P').map(({r,valorNota})=>{
+    // Agrupar prioridades por grupo economico
+    const pendByGrupo={};
+    mine.filter(({r})=>conf(r)==='P').forEach(({r,valorNota})=>{
       const cpf=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
-      return{ced:r['CEDENTE']||gc(r,8)||'—',dias:diasD(r['DATA EMISSAO']||gc(r,10))||0,novo:isNovo(cpf),val:valorNota};
+      const grupo=getCed(r).grupo||'Sem grupo';
+      const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
+      const doc=String(r['DOCUMENTO']||gc(r,0)||'').trim();
+      const dias=diasD(r['DATA EMISSAO']||gc(r,10))||0;
+      const novo=isNovo(cpf);
+      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,exemplos:[]};
+      pendByGrupo[grupo].notas++;
+      pendByGrupo[grupo].val+=valorNota;
+      if(dias>pendByGrupo[grupo].maxDias)pendByGrupo[grupo].maxDias=dias;
+      if(novo)pendByGrupo[grupo].novo=true;
+      if(pendByGrupo[grupo].exemplos.length<2)pendByGrupo[grupo].exemplos.push({doc,sacado});
+      if(!pendByGrupo[grupo].todasNotas)pendByGrupo[grupo].todasNotas=[];
+      pendByGrupo[grupo].todasNotas.push({doc,sacado,dias});
     });
-    // Agrupar por cedente para nao repetir
-    const porCed={};
-    pend.forEach(p=>{
-      if(!porCed[p.ced])porCed[p.ced]={ced:p.ced,dias:0,novo:p.novo,notas:0,val:0};
-      if(p.dias>porCed[p.ced].dias)porCed[p.ced].dias=p.dias;
-      porCed[p.ced].notas++;porCed[p.ced].val+=p.val;
-    });
-    const prioridades=Object.values(porCed).sort((a,b)=>(b.novo?1000:0)+b.dias-(a.novo?1000:0)-a.dias).slice(0,5);
+    const prioridades=Object.values(pendByGrupo).sort((a,b)=>(b.novo?1000:0)+b.maxDias-(a.novo?1000:0)-a.maxDias).slice(0,6);
     return`<div class="ctrl-card">
       <div class="ctrl-card-hdr">
         <div class="ctrl-avatar">${ctrl.substring(0,2).toUpperCase()}</div>
@@ -1082,13 +1249,29 @@ function renderControladores(){
         <div class="ctrl-prog-lbl"><span>Progresso</span><span>${pctFeito}%</span></div>
         <div class="ctrl-prog-track"><div class="ctrl-prog-fill" style="width:${pctFeito}%"></div></div>
       </div>
-      ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades (cedentes pendentes)</div>${prioridades.map((p,i)=>`<div class="priority-item"><div class="priority-dot" style="background:${i===0?'#f05252':i===1?'#f5a623':'#5b8af5'}"></div><div style="flex:1;min-width:0"><div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.novo?'* ':''}${p.ced}</div><div style="font-size:10px;color:var(--text2)">${p.notas} nota${p.notas>1?'s':''} · ${p.dias}d em aberto · ${fmtVal(p.val)}</div></div></div>`).join('')}</div>`:''}
+      ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
+        const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
+        const notasHtml=p.todasNotas?p.todasNotas.map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:var(--text2)">${n.dias}d</span></div>`).join(''):'';
+        return`<div class="priority-item" style="flex-direction:column;align-items:stretch;gap:0">
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0" onclick="toggleGrp('${uid}')">
+            <div class="priority-dot" style="background:${i===0?'#f05252':i===1?'#f5a623':'#5b8af5'};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.novo?'<span style=\"color:#a78bfa;font-weight:700\">★ </span>':''}<strong>${p.grupo}</strong></div>
+              <div style="font-size:10px;color:var(--text2)">${p.notas} nota${p.notas>1?'s':''} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
+            </div>
+            <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
+          </div>
+          <div id="${uid}" style="display:none;margin-top:6px;padding:4px 6px;background:var(--bg3);border-radius:4px;max-height:150px;overflow-y:auto">${notasHtml}</div>
+        </div>`;
+      }).join('')}</div>`:''}
     </div>`;
   }).join('')}</div>`;
 }
 // ── OPERAÇÕES ──
 function renderFilters(){
-  const hists=[...new Set(TITS_ELEG.map(r=>String(r['HISTORICO']||gc(r,24)).trim()).filter(v=>v&&v!=='nan'))].sort();
+  // Mostrar apenas codigos padrao no filtro de historico
+  const HIST_VALIDOS=['COM', 'ISE', 'SER', 'SC', 'FRA', 'RET', 'NE', 'DEV', 'NPT', 'LSC', 'PC', 'REC', 'SUB', 'CONFIRMADO'];
+  const hists=[...new Set(TITS_ELEG.map(r=>String(r['HISTORICO']||gc(r,24)).trim().toUpperCase()).filter(v=>v&&v!=='NAN'&&HIST_VALIDOS.includes(v)))].sort();
   document.getElementById('f-hist').innerHTML='<option value="">Todos os históricos</option>'+hists.map(h=>`<option>${h}</option>`).join('');
   const ctrls=[...new Set(Object.values(CEDS).map(c=>c.controlador).filter(Boolean))].sort();
   document.getElementById('f-ctrl').innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
@@ -1104,8 +1287,8 @@ function renderOps(){
   const fCt=document.getElementById('f-ctrl').value;
   const fG=document.getElementById('f-grp').value;
   const fS=document.getElementById('f-srch').value.toLowerCase();
-  const PL={ok:'No prazo',alerta:'Alerta',vencido:'Vencido',sem:'Sem config.'};
-  const PC={ok:'bg',alerta:'ba',vencido:'br',sem:'bgr'};
+  const PL={ok:'No prazo',alerta:'Alerta',vencido:'Vencido',sem:'Sem config.',isento:'Isento'};
+  const PC={ok:'bg',alerta:'ba',vencido:'br',sem:'bgr',isento:'bb'};
   const rows=TITS_ELEG.map((r,i)=>({r,i,a:_alertMap[i]||{alertas:[],nivel:'ok'}})).filter(({r,a})=>{
     const h=String(r['HISTORICO']||gc(r,24)).trim();
     const c=String(r['CONF']||gc(r,1)).trim().toUpperCase();
@@ -1129,7 +1312,7 @@ function renderOps(){
     const obsKey='tit_'+String(r['DOCUMENTO']||gc(r,0)).replace(/\s/g,'_');
     const obsCount=OBSERVACOES[obsKey]?OBSERVACOES[obsKey].length:0;
     return`<tr class="${a.nivel==='bloqueio'?'row-alert':''}">
-      <td>${novo?'⭐':'—'}</td>
+      <td>${novo?'<span style="color:#a78bfa;font-size:14px">★</span>':'—'}</td>
       <td title="${r['DOCUMENTO']||''}">${r['DOCUMENTO']||'—'}</td>
       <td><span class="badge ${cf==='C'?'bg':cf==='P'?'ba':'bgr'}">${cf||'—'}</span></td>
       <td title="${r['CEDENTE']||gc(r,8)}">${r['CEDENTE']||gc(r,8)||'—'}</td>
@@ -1153,26 +1336,149 @@ function renderOps(){
 function renderAlertas(){
   document.getElementById('alertas-empty').style.display='none';
   document.getElementById('alertas-body').style.display='block';
-  const viol=TITS_ELEG.map((r,i)=>({r,a:_alertMap[i]})).filter(({a})=>a?.nivel==='bloqueio');
-  if(!viol.length){document.getElementById('alertas-body').innerHTML='<div class="empty" style="color:var(--green)">✓ Nenhum alerta de bloqueio no momento</div>';return;}
-  const porCtrl={};
-  viol.forEach(({r,a})=>{const ct=getCed(r).controlador||'Sem controlador';if(!porCtrl[ct])porCtrl[ct]=[];porCtrl[ct].push({r,a});});
-  document.getElementById('alertas-body').innerHTML=Object.entries(porCtrl).map(([ctrl,items])=>`
-    <div class="section">
-      <div class="section-hdr"><div class="section-title">${ctrl}</div><span class="badge br">⚠ ${items.length} alerta${items.length>1?'s':''}</span></div>
-      <div class="section-body" style="padding:.75rem 1.25rem">
-        ${items.map(({r,a})=>`<div class="alert-row"><div class="alert-icon">⛔</div><div style="flex:1"><div class="alert-title">${r['CEDENTE']||gc(r,8)||'—'} — ${r['DOCUMENTO']||gc(r,0)||'—'} — ${fmtVal(r['VALOR(R$)']||gc(r,18))}</div><div class="alert-desc">${a.alertas.join(' · ')}</div></div></div>`).join('')}
+
+  // Separar alertas de prazo vs recompra
+  const prazoViol=[];
+  const recViol=[];
+  TITS_ELEG.forEach((r,i)=>{
+    const hist=String(r['HISTORICO']||gc(r,24)).trim().toUpperCase();
+    const a=_alertMap[i];
+    if(hist==='REC'){
+      recViol.push({r,a:{alertas:['Recompra'],nivel:'bloqueio'}});
+    } else if(a?.nivel==='bloqueio'){
+      prazoViol.push({r,a});
+    }
+  });
+
+  const allViol=[...prazoViol,...recViol];
+  if(!allViol.length){
+    document.getElementById('alertas-body').innerHTML='<div class="empty" style="color:var(--green)">✓ Nenhum alerta no momento</div>';
+    return;
+  }
+
+  // Pegar controladores únicos
+  const ctrls=[...new Set(allViol.map(({r})=>getCed(r).controlador||'Sem controlador'))].sort();
+
+  // Render
+  function buildColuna(viols, ctrlFiltro){
+    const filtrado=ctrlFiltro?viols.filter(({r})=>(getCed(r).controlador||'Sem controlador')===ctrlFiltro):viols;
+    if(!filtrado.length)return'<div class="empty" style="padding:1rem;color:var(--green)">✓ Nenhum</div>';
+    // Agrupar por grupo
+    const porGrp={};
+    filtrado.forEach(({r,a})=>{
+      const grp=getCed(r).grupo||'Sem grupo';
+      if(!porGrp[grp])porGrp[grp]=[];
+      porGrp[grp].push({r,a});
+    });
+    return Object.entries(porGrp).sort((a,b)=>b[1].length-a[1].length).map(([grp,items])=>{
+      const uid='alrt_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
+      const totalVal=items.reduce((s,{r})=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
+      const notasHtml=items.map(({r,a})=>{
+        const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
+        const doc=r['DOCUMENTO']||gc(r,0)||'—';
+        const dias=diasD(r['DATA EMISSAO']||gc(r,10));
+        return`<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center">
+          <span style="color:var(--text2);font-family:monospace;flex-shrink:0">${doc}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${sacado||'—'}</span>
+          ${dias!==null?`<span style="color:var(--amber);flex-shrink:0">${dias}d</span>`:''}
+        </div>`;
+      }).join('');
+      return`<div style="margin-bottom:8px;background:var(--bg3);border-radius:var(--radius-sm);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer" onclick="toggleGrp('${uid}')">
+          <span style="font-size:11px;color:var(--purple)">📦</span>
+          <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:500;white-space:nowrap">${grp}</span>
+            <span style="font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;white-space:nowrap">${fmtVal(totalVal)}</span>
+            <span class="badge br" style="white-space:nowrap">${items.length} nota${items.length>1?'s':''}</span>
+          </div>
+          <span id="${uid}_ico" style="font-size:10px;color:var(--text3);flex-shrink:0">▶</span>
+        </div>
+        <div id="${uid}" style="display:none;padding:0 10px 8px">${notasHtml}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Só reconstrói o layout base se ainda não existir
+  if(!document.getElementById('col-prazo')){
+    document.getElementById('alertas-body').innerHTML=`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500">Filtrar por controlador:</span>
+        <select id="alrt-ctrl-filter" onchange="filtrarAlertas()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
+          <option value="">Todos</option>
+          ${ctrls.map(c=>`<option>${c}</option>`).join('')}
+        </select>
+        <span style="font-size:12px;color:var(--text2)" id="alrt-count">${prazoViol.length} prazo · ${recViol.length} recompra</span>
       </div>
-    </div>`).join('');
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+        <div class="section" style="margin-bottom:0">
+          <div class="section-hdr">
+            <div class="section-title">⏰ Alerta de prazo</div>
+            <span class="badge br" id="alrt-prazo-cnt">${prazoViol.length}</span>
+          </div>
+          <div class="section-body" style="padding:.75rem" id="col-prazo"></div>
+        </div>
+        <div class="section" style="margin-bottom:0">
+          <div class="section-hdr">
+            <div class="section-title">🔄 Recompra</div>
+            <span class="badge ba" id="alrt-rec-cnt">${recViol.length}</span>
+          </div>
+          <div class="section-body" style="padding:.75rem" id="col-rec"></div>
+        </div>
+      </div>`;
+  }
+
+  // Guardar dados para o filtro
+  window._prazoViol=prazoViol;
+  window._recViol=recViol;
+  window._buildColuna=buildColuna;
+  filtrarAlertas();
+}
+
+function filtrarAlertas(){
+  const sel=document.getElementById('alrt-ctrl-filter');
+  const ctrlFiltro=sel?sel.value.trim():'';
+  const prazoViol=window._prazoViol||[];
+  const recViol=window._recViol||[];
+  const buildColuna=window._buildColuna;
+  if(!buildColuna)return;
+  // Filtrar por controlador
+  const pFiltrado=ctrlFiltro
+    ?prazoViol.filter(({r})=>{const ct=String(getCed(r).controlador||'Sem controlador').trim();return ct===ctrlFiltro;})
+    :prazoViol;
+  const rFiltrado=ctrlFiltro
+    ?recViol.filter(({r})=>{const ct=String(getCed(r).controlador||'Sem controlador').trim();return ct===ctrlFiltro;})
+    :recViol;
+  console.log('filtrarAlertas ctrl:',ctrlFiltro,'prazo:',pFiltrado.length,'rec:',rFiltrado.length);
+  const cp=document.getElementById('col-prazo');
+  const cr=document.getElementById('col-rec');
+  if(cp)cp.innerHTML=buildColuna(pFiltrado,'');
+  if(cr)cr.innerHTML=buildColuna(rFiltrado,'');
+  const pc=document.getElementById('alrt-prazo-cnt');
+  const rc=document.getElementById('alrt-rec-cnt');
+  const ac=document.getElementById('alrt-count');
+  if(pc)pc.textContent=pFiltrado.length;
+  if(rc)rc.textContent=rFiltrado.length;
+  if(ac)ac.textContent=pFiltrado.length+' prazo · '+rFiltrado.length+' recompra';
 }
 
 // ── HISTÓRICO ──
+let CONTATOS=[];
+let LEMBRETES=[];
+let _calSelected=null;
+
 function renderHistorico(){
-  document.getElementById('hist-empty').style.display='none';
-  document.getElementById('hist-body').style.display='block';
-  renderCal();renderTimeline();
+  const ctrls=[...new Set(Object.values(CEDS).map(c=>c.controlador).filter(Boolean))].sort();
+  const sel=document.getElementById('hist-ctrl-filter');
+  if(sel&&sel.options.length<=1){
+    sel.innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
+  }
+  renderCal();
+  renderContatos();
+  renderLembretes();
 }
+
 function navCal(dir){calMonth+=dir;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCal();}
+
 function renderCal(){
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   document.getElementById('cal-month-label').textContent=meses[calMonth]+' '+calYear;
@@ -1180,34 +1486,178 @@ function renderCal(){
   const primeiro=new Date(calYear,calMonth,1);
   const ultimo=new Date(calYear,calMonth+1,0);
   const diasSemana=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  // Dados do histórico por dia
+  const ctrlF=document.getElementById('hist-ctrl-filter')?.value||'';
+  // Marcar dias com contatos
   const porDia={};
-  HISTORICO_DIARIO.forEach(h=>{const d=h.data.substring(0,10);porDia[d]=(porDia[d]||0)+1;});
-  // Obs por dia
-  Object.entries(OBSERVACOES).forEach(([,obs])=>{obs.forEach(o=>{const d=o.data.substring(0,10);porDia[d]=(porDia[d]||0)+1;});});
+  CONTATOS.filter(c=>!ctrlF||c.controlador===ctrlF).forEach(c=>{
+    if(c.data){const d=c.data.substring(0,10);porDia[d]=(porDia[d]||0)+1;}
+  });
+  LEMBRETES.filter(l=>!ctrlF||l.controlador===ctrlF).forEach(l=>{
+    if(l.data){const d=l.data.substring(0,10);porDia[d]=(porDia[d]||0)+1;}
+  });
   let html=diasSemana.map(d=>`<div class="cal-day-name">${d}</div>`).join('');
   for(let i=0;i<primeiro.getDay();i++)html+=`<div class="cal-day other-month"></div>`;
   for(let d=1;d<=ultimo.getDate();d++){
     const dateStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=hoje.getDate()===d&&hoje.getMonth()===calMonth&&hoje.getFullYear()===calYear;
+    const isSel=_calSelected===dateStr;
     const cnt=porDia[dateStr]||0;
-    html+=`<div class="cal-day ${cnt?'has-data':''} ${isToday?'today':''}" onclick="selectCalDay('${dateStr}')"><div class="cal-day-num">${d}</div>${cnt?`<div class="cal-day-count">${cnt} reg.</div>`:''}</div>`;
+    html+=`<div class="cal-day ${cnt?'has-data':''} ${isToday?'today':''} ${isSel?'selected':''}" onclick="selectCalDay('${dateStr}')"><div class="cal-day-num">${d}</div>${cnt?`<div class="cal-day-count">${cnt}</div>`:''}</div>`;
   }
   document.getElementById('cal-grid').innerHTML=html;
 }
+
 function selectCalDay(dateStr){
-  document.querySelectorAll('.cal-day').forEach(d=>d.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  renderTimeline(dateStr);
-  document.getElementById('tl-title').textContent='Atividade em '+new Date(dateStr+'T12:00:00').toLocaleDateString('pt-BR');
+  _calSelected=dateStr;
+  renderCal();
+  renderContatos(dateStr);
+  document.getElementById('tl-title').textContent='Contatos em '+new Date(dateStr+'T12:00:00').toLocaleDateString('pt-BR');
 }
-function renderTimeline(filterDate=null){
-  const items=[];
-  HISTORICO_DIARIO.forEach(h=>{if(!filterDate||h.data.startsWith(filterDate))items.push({tipo:'check',titulo:h.cedente,meta:`Confirmado por ${h.usuario}`,data:h.data});});
-  Object.entries(OBSERVACOES).forEach(([key,obs])=>{obs.forEach(o=>{if(!filterDate||o.data.startsWith(filterDate))items.push({tipo:'obs',titulo:key.replace('tit_','').replace('ced_',''),meta:`${o.usuario}: ${o.texto.substring(0,60)}${o.texto.length>60?'...':''}`,data:o.data});});});
-  items.sort((a,b)=>new Date(b.data)-new Date(a.data));
-  document.getElementById('timeline').innerHTML=items.length?items.slice(0,50).map(it=>`<div class="tl-item"><div class="tl-dot" style="background:${it.tipo==='obs'?'#5b8af5':'#2dd4a0'}"></div><div class="tl-body"><div class="tl-title">${it.titulo}</div><div class="tl-meta">${it.meta} · ${new Date(it.data).toLocaleString('pt-BR')}</div></div></div>`).join(''):'<div style="text-align:center;padding:1.5rem;color:var(--text2);font-size:12px">Nenhuma atividade neste período</div>';
+
+function renderContatos(filterDate=null){
+  const ctrlF=document.getElementById('hist-ctrl-filter')?.value||'';
+  let lista=CONTATOS.filter(c=>!ctrlF||c.controlador===ctrlF);
+  if(filterDate)lista=lista.filter(c=>c.data&&c.data.startsWith(filterDate));
+  lista.sort((a,b)=>new Date(b.data)-new Date(a.data));
+  const el=document.getElementById('contatos-lista');
+  if(!el)return;
+  el.innerHTML=lista.length?lista.map((c,i)=>{
+    const podeEditar=currentUser.perfil==='admin'||c.usuario===currentUser.nome;
+    return`<div class="contato-item">
+      <div class="contato-item-hdr">
+        <span style="font-size:14px">📞</span>
+        <div class="contato-cedente">${c.cedente||'—'}</div>
+        <div class="contato-meta" style="margin-left:auto">${c.controlador} · ${c.data?new Date(c.data+'T12:00').toLocaleDateString('pt-BR'):''}</div>
+        ${podeEditar?`<button class="obs-btn" onclick="deleteContato(${i})" style="color:var(--red);margin-left:6px">✕</button>`:''}
+      </div>
+      <div class="contato-obs">${c.obs||''}</div>
+    </div>`;
+  }).join(''):'<div class="empty" style="padding:1rem;font-size:12px">Nenhum contato registrado</div>';
 }
+
+function renderLembretes(){
+  const ctrlF=document.getElementById('hist-ctrl-filter')?.value||'';
+  let lista=LEMBRETES.filter(l=>!ctrlF||l.controlador===ctrlF);
+  lista.sort((a,b)=>{
+    if(a.feito!==b.feito)return a.feito?1:-1;
+    if(a.prioridade==='urgente'&&b.prioridade!=='urgente')return-1;
+    if(b.prioridade==='urgente'&&a.prioridade!=='urgente')return 1;
+    return new Date(a.data)-new Date(b.data);
+  });
+  const el=document.getElementById('lembretes-lista');
+  if(!el)return;
+  const hoje=new Date().toISOString().substring(0,10);
+  el.innerHTML=lista.length?lista.map((l,i)=>{
+    const podeEditar=currentUser.perfil==='admin'||l.usuario===currentUser.nome;
+    const vencido=l.data&&l.data<hoje&&!l.feito;
+    return`<div class="task-item ${l.prioridade||'normal'} ${l.feito?'done':''}">
+      <input type="checkbox" class="task-check" ${l.feito?'checked':''} onchange="toggleLembrete(${i},this.checked)" ${!podeEditar?'disabled':''}>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;${l.feito?'text-decoration:line-through':''}">${l.desc||'—'}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">
+          ${l.controlador} · ${l.data?`<span style="color:${vencido?'var(--red)':'var(--text2)'}">📅 ${new Date(l.data+'T12:00').toLocaleDateString('pt-BR')}</span>`:''}
+          ${l.prioridade==='urgente'?'<span class="badge br" style="margin-left:4px">Urgente</span>':''}
+        </div>
+      </div>
+      ${podeEditar?`<button class="obs-btn" onclick="deleteLembrete(${i})" style="color:var(--red)">✕</button>`:''}
+    </div>`;
+  }).join(''):'<div class="empty" style="padding:1rem;font-size:12px">Nenhum lembrete</div>';
+}
+
+function openNovoContato(){
+  const hoje=new Date().toISOString().substring(0,10);
+  document.getElementById('ct-obs').value='';
+  document.getElementById('ct-data').value=hoje;
+  // Popular grupos - tenta CEDS primeiro, senão busca do Apps Script
+  let grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+  const selCed=document.getElementById('ct-cedente');
+  if(selCed){
+    if(grupos.length>0){
+      selCed.innerHTML='<option value="">Selecione o grupo...</option>'+grupos.map(g=>`<option>${g}</option>`).join('');
+    } else {
+      selCed.innerHTML='<option value="">Carregando grupos...</option>';
+      fetch(GAS_URL_PATCH+'?sheet=CadastroCedentes').then(r=>r.json()).then(data=>{
+        grupos=[...new Set(data.slice(1).map(r=>String(r[16]||'').trim()).filter(Boolean))].sort();
+        selCed.innerHTML='<option value="">Selecione o grupo...</option>'+grupos.map(g=>`<option>${g}</option>`).join('');
+      });
+    }
+  }
+  // Sempre registra como o proprio usuario
+  const ctCtrl=document.getElementById('ct-ctrl');
+  if(ctCtrl)ctCtrl.value=currentUser.nome;
+  document.getElementById('contato-modal').classList.add('open');
+}
+
+function openNovoLembrete(){
+  const hoje=new Date().toISOString().substring(0,10);
+  document.getElementById('lb-desc').value='';
+  document.getElementById('lb-data').value=hoje;
+  document.getElementById('lb-prior').value='normal';
+  const lbCtrl=document.getElementById('lb-ctrl');
+  if(lbCtrl)lbCtrl.value=currentUser.nome;
+  document.getElementById('lembrete-modal').classList.add('open');
+}
+
+async function salvarContato(){
+  const cedente=document.getElementById('ct-cedente').value.trim();
+  const obs=document.getElementById('ct-obs').value.trim();
+  const data=document.getElementById('ct-data').value;
+  const ctrl=document.getElementById('ct-ctrl').value;
+  if(!cedente&&!obs)return;
+  const contato={cedente,obs,data,controlador:ctrl||'Geral',usuario:currentUser.nome,criado:new Date().toISOString()};
+  CONTATOS.unshift(contato);
+  await sAppend('Historico!A:F',[[contato.criado,'CONTATO',contato.cedente,contato.obs,contato.data,contato.controlador+';'+contato.usuario]]);
+  document.getElementById('contato-modal').classList.remove('open');
+  renderCal();
+  renderContatos(_calSelected);
+}
+
+async function salvarLembrete(){
+  const desc=document.getElementById('lb-desc').value.trim();
+  const data=document.getElementById('lb-data').value;
+  const prior=document.getElementById('lb-prior').value;
+  const ctrl=document.getElementById('lb-ctrl').value;
+  if(!desc)return;
+  const lembrete={desc,data,prioridade:prior,controlador:ctrl||'Geral',usuario:currentUser.nome,feito:false,criado:new Date().toISOString()};
+  LEMBRETES.unshift(lembrete);
+  await sAppend('Historico!A:F',[[lembrete.criado,'LEMBRETE',lembrete.desc,'',lembrete.data,lembrete.controlador+';'+lembrete.usuario+';'+lembrete.prioridade]]);
+  document.getElementById('lembrete-modal').classList.remove('open');
+  renderCal();
+  renderLembretes();
+}
+
+async function toggleLembrete(i,feito){
+  LEMBRETES[i].feito=feito;
+  renderLembretes();
+  // Salvar estado no Sheets
+  await saveHistoricoSheets();
+}
+
+async function deleteContato(i){
+  if(currentUser.perfil!=='admin'&&CONTATOS[i].usuario!==currentUser.nome){alert('Sem permissão');return;}
+  if(!confirm('Apagar este contato?'))return;
+  CONTATOS.splice(i,1);
+  await saveHistoricoSheets();
+  renderCal();renderContatos(_calSelected);
+}
+
+async function deleteLembrete(i){
+  if(currentUser.perfil!=='admin'&&LEMBRETES[i].usuario!==currentUser.nome){alert('Sem permissão');return;}
+  if(!confirm('Apagar este lembrete?'))return;
+  LEMBRETES.splice(i,1);
+  await saveHistoricoSheets();
+  renderCal();renderLembretes();
+}
+
+async function saveHistoricoSheets(){
+  const rows=[['CRIADO','TIPO','TITULO','OBS','DATA','META']];
+  CONTATOS.forEach(c=>rows.push([c.criado,'CONTATO',c.cedente,c.obs,c.data,c.controlador+';'+c.usuario]));
+  LEMBRETES.forEach(l=>rows.push([l.criado,'LEMBRETE',l.desc,'',l.data,l.controlador+';'+l.usuario+';'+l.prioridade+(l.feito?';FEITO':'')]));
+  await sSet('Historico!A1',rows);
+}
+
+// Manter compatibilidade com timeline antiga
+function renderTimeline(){}
 
 // ── OBSERVAÇÕES ──
 async function loadObs(){
@@ -1222,6 +1672,23 @@ async function loadObs(){
       OBSERVACOES[key].push({texto:r[1],usuario:r[2],data:r[3]});
     });
   }catch(e){}
+  // Carregar contatos e lembretes
+  try{
+    const rows=await sGet('Historico!A:F');
+    CONTATOS=[];LEMBRETES=[];
+    rows.slice(1).forEach(r=>{
+      if(!r[0]||!r[1])return;
+      const meta=String(r[5]||'').split(';');
+      const ctrl=meta[0]||'Geral';
+      const usuario=meta[1]||'';
+      if(r[1]==='CONTATO'){
+        CONTATOS.push({criado:r[0],cedente:r[2]||'',obs:r[3]||'',data:r[4]||'',controlador:ctrl,usuario});
+      } else if(r[1]==='LEMBRETE'){
+        LEMBRETES.push({criado:r[0],desc:r[2]||'',data:r[4]||'',controlador:ctrl,usuario,
+          prioridade:meta[2]||'normal',feito:(meta[3]||'')==='FEITO'});
+      }
+    });
+  }catch(e){console.error('loadObs historico erro:',e);}
 }
 
 function openObs(key,titulo){
@@ -1266,9 +1733,9 @@ async function deleteObs(key,idx){
 // ── CONFIG ──
 async function loadConfig(){
   try{
-    const pr=await sGet('Prazo!A:C');
+    const pr=await sGet('Prazo!A:D');
     PRAZOS_GRUPO={};
-    pr.slice(1).forEach(r=>{if(r[0])PRAZOS_GRUPO[r[0]]={pedido:r[1]||'',entrega:r[2]||''};});
+    pr.slice(1).forEach(r=>{if(r[0])PRAZOS_GRUPO[r[0]]={pedido:r[1]||'',entrega:r[2]||'',isento:(r[3]||'').toUpperCase()==='SIM'};});
     const rg=await sGet('Regras!A:F');
     REGRAS_CED={};
     rg.slice(1).forEach(r=>{
@@ -1297,11 +1764,14 @@ function renderCfgPage(){
 
 function renderPrazosRows(canEdit){
   document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
-    <div class="cfg-row" style="grid-template-columns:1fr 90px 90px 70px 36px">
+    <div class="cfg-row" style="grid-template-columns:1fr 90px 90px 70px 80px 36px">
       <input type="text" readonly value="${grp}">
       <input type="number" min="0" value="${pr.pedido}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')">
       <input type="number" min="0" value="${pr.entrega}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')">
       <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}">
+      <div style="display:flex;align-items:center;justify-content:center">
+        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" title="Isento de checagem" style="width:16px;height:16px;cursor:pointer">
+      </div>
       ${canEdit?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
     </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado — carregue o CadastroCedentes para popular automaticamente</div>';
 }
@@ -1323,9 +1793,9 @@ function addRegraRow(){const k='manual_'+Date.now();REGRAS_CED[k]={nome:'Cedente
 
 async function saveConfig(){
   DEFAULT_RULES={min:parseFloat(document.getElementById('dr-min').value)||0,cedPct:parseFloat(document.getElementById('dr-ced-pct').value)||20,cedVal:parseFloat(document.getElementById('dr-ced-val').value)||100000,sacPct:parseFloat(document.getElementById('dr-sac-pct').value)||20,sacVal:parseFloat(document.getElementById('dr-sac-val').value)||100000,dias:parseInt(document.getElementById('dr-dias').value)||7};
-  const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS']];
-  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'']));
-  await sSet('Prazo!A1',pRows);
+  const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS','ISENTO']];
+  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'']));
+  await sSet('Prazo!A1',pRows); // A:D inclui ISENTO
   const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],
     ['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
   Object.entries(REGRAS_CED).forEach(([cpf,r])=>rRows.push([cpf,r.nome||'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
@@ -1386,10 +1856,86 @@ async function loadCedentesAuto(){
     const tot=Object.keys(CEDS).length;
     if(el){el.textContent=tot+' cedentes';el.style.color='var(--green)';document.getElementById('uc-ced2').classList.add('done');}
     console.log('Cedentes carregados:',tot);
+    // Marcar PROSPER como isento automaticamente
+    const prospCpf=normCPF('36.213.493/0001-95');
+    if(CEDS[prospCpf])PRAZOS_GRUPO[CEDS[prospCpf].grupo]=Object.assign(PRAZOS_GRUPO[CEDS[prospCpf].grupo]||{pedido:'',entrega:''},{ isento:true });
     if(TITS_ELEG.length>0)buildAll();
   }catch(e){
     console.error('loadCedentesAuto erro:',e);
     if(el)el.textContent='Carregar manualmente';
+  }
+}
+
+function toggleGrp(uid){
+  const el=document.getElementById(uid);
+  const ico=document.getElementById(uid+'_ico');
+  if(!el)return;
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(ico)ico.textContent=open?'▼':'▶';
+}
+
+
+// ── TITULOS NO SHEETS ──
+async function salvarTitulosSheets(rows, usuario){
+  if(!rows||!rows.length)return;
+  const el=document.getElementById('ul-tit2');
+  if(el)el.textContent='Salvando no Sheets...';
+  try{
+    // Pegar cabecalho das colunas
+    const keys=Object.keys(rows[0]);
+    const header=keys;
+    const data=[header,...rows.map(r=>keys.map(k=>r[k]!==undefined?String(r[k]):''))];
+    // Salvar metadado: quem fez upload e quando
+    const meta=[[usuario,new Date().toISOString(),rows.length+'']];
+    await sSet('TitulosAbertoAR!A1',data);
+    await sSet('TitulosAbertoAR_Meta!A1',meta);
+    if(el){
+      el.textContent=TITS_ELEG.length+' elegiveis · salvo ✓';
+      el.style.color='var(--green)';
+    }
+    console.log('TitulosAbertoAR salvo no Sheets:',rows.length,'linhas');
+  }catch(e){
+    console.error('Erro ao salvar titulos:',e);
+    if(el)el.textContent=TITS_ELEG.length+' elegiveis';
+  }
+}
+
+async function loadTitulosSheets(){
+  const el=document.getElementById('ul-tit2');
+  const card=document.getElementById('uc-tit2');
+  try{
+    if(el)el.textContent='Carregando...';
+    // Verificar metadado primeiro
+    let meta=[];
+    try{meta=await sGet('TitulosAbertoAR_Meta!A1:C1');}catch(e){}
+    const rows=await sGet('TitulosAbertoAR!A:ZZ');
+    if(!rows||rows.length<2){
+      if(el)el.textContent='Carregar .xlsx';
+      return false;
+    }
+    const headers=rows[0];
+    const raw=rows.slice(1).map(r=>{
+      const obj={};
+      headers.forEach((h,i)=>obj[h]=r[i]||'');
+      return obj;
+    });
+    TITS=raw;
+    TITS_ELEG=filtrarEleg(raw);
+    if(card)card.classList.add('done');
+    let subtext=TITS_ELEG.length+' elegiveis';
+    if(meta&&meta[0]&&meta[0][0]){
+      const d=new Date(meta[0][1]);
+      subtext+=` · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
+    }
+    if(el){el.textContent=subtext;el.style.color='var(--green)';}
+    console.log('TitulosAbertoAR carregado do Sheets:',raw.length,'linhas');
+    if(TITS_ELEG.length>0)buildAll();
+    return true;
+  }catch(e){
+    console.error('loadTitulosSheets erro:',e);
+    if(el)el.textContent='Carregar .xlsx';
+    return false;
   }
 }
 
