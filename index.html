@@ -1484,10 +1484,12 @@ function renderHistorico(){
   if(sel&&sel.options.length<=1){
     sel.innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
   }
-  // Popular filtro de grupos com base nos contatos registrados
+  // Popular filtro de grupos com base no CadastroCedentes
   const grpSel=document.getElementById('hist-grp-filter');
   if(grpSel){
-    const grps=[...new Set(CONTATOS.map(c=>c.cedente).filter(Boolean))].sort();
+    const grpsCeds=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+    const grpsContatos=[...new Set(CONTATOS.map(c=>c.cedente).filter(Boolean))];
+    const grps=[...new Set([...grpsCeds,...grpsContatos])].sort();
     const cur=grpSel.value;
     grpSel.innerHTML='<option value="">Todos os grupos</option>'+grps.map(g=>`<option ${g===cur?'selected':''}>${g}</option>`).join('');
   }
