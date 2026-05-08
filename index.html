@@ -475,6 +475,7 @@ async function sGet(range){
     const r=await fetch(url);
     if(!r.ok){console.error('sGet erro',r.status,sheet);return[];}
     const data=await r.json();
+    console.log('sGet ok:',sheet,Array.isArray(data)?data.length:'err');
     return Array.isArray(data)?data:[];
   }catch(e){console.error('sGet exception',e,range);return[];}
 }
@@ -511,6 +512,48 @@ function selectUser(i){selIdx=i;document.querySelectorAll('.user-btn').forEach((
 function renderPinDots(){document.getElementById('pin-dots').innerHTML=[0,1,2,3].map(i=>`<div class="pin-dot ${i<pinBuffer.length?'filled':''}"></div>`).join('');}
 function pinKey(k){if(k==='←')pinBuffer=pinBuffer.slice(0,-1);else if(k==='✓'){checkPin();return;}else if(pinBuffer.length<4)pinBuffer+=k;renderPinDots();if(pinBuffer.length===4)checkPin();}
 function checkPin(){const u=USERS[selIdx];if(pinBuffer===u.pin){currentUser=u;enterApp();}else{document.getElementById('pin-error').textContent='PIN incorreto.';pinBuffer='';renderPinDots();}}
+
+async function loadCedentesSheets(){
+  const el=document.getElementById('ul-ced2');
+  try{
+    const url='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec?sheet=CadastroCedentes';
+    const r=await fetch(url);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const rows=await r.json();
+    if(!rows||rows.length<2)return;
+    parseCedsFromArray(rows);
+    if(el){el.textContent=Object.keys(CEDS).length+' cedentes';el.style.color='var(--green)';}
+  }catch(e){console.error('loadCedentesSheets erro:',e);}
+}
+
+function parseCedsFromArray(rows){
+  const headers=rows[0];
+  const norm=s=>String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const hIdx={};
+  headers.forEach((h,i)=>hIdx[norm(h)]=i);
+  const getH=(row,name)=>{const i=hIdx[norm(name)];return(i!==undefined?row[i]:'')||''};
+  const byCol=(row,letra)=>{const m={A:0,B:1,J:9,L:11,N:13,Q:16,S:18,AD:29};return row[m[letra]!==undefined?m[letra]:0]||''};
+  CEDS={};
+  rows.slice(1).forEach(row=>{
+    if(!row||!row.length)return;
+    const cpf=normCPF(getH(row,'CPF/CNPJ')||byCol(row,'B'));
+    if(!cpf)return;
+    const riscoAtual=parseVal(getH(row,'RISCO ATUAL')||byCol(row,'AD'));
+    CEDS[cpf]={
+      nome:String(getH(row,'NOME CEDENTE')||getH(row,'NOME')||byCol(row,'A')||'').trim(),
+      operador:String(getH(row,'OPERADOR')||byCol(row,'J')||'').trim(),
+      controlador:String(getH(row,'CONTROLADOR')||byCol(row,'L')||'').trim(),
+      grupo:String(getH(row,'GRUPO ECONOMICO')||getH(row,'GRUPO')||byCol(row,'Q')||'').trim(),
+      bloqueado:false,
+      semRisco:(riscoAtual===0),
+      dataCad:String(getH(row,'DATA DE CADASTRO')||byCol(row,'N')||'').trim(),
+      primeiraOp:String(getH(row,'PRIMEIRA OPERACAO')||byCol(row,'S')||'').trim(),
+      riscoAtual,
+    };
+  });
+  console.log('Cedentes carregados:',Object.keys(CEDS).length);
+}
+
 function enterApp(){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -518,6 +561,7 @@ function enterApp(){
   document.getElementById('sb-name').textContent=currentUser.nome;
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   applyPerms();
+  loadCedentesAuto();
   loadConfig();
   loadObs();
 }
@@ -609,7 +653,8 @@ function loadFile(inp,tipo){
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
     }
-    if(TITS_ELEG.length>0&&Object.keys(CEDS).length>0)buildAll();
+    // Roda buildAll sempre que titulos estiverem carregados
+    if(TITS_ELEG.length>0) buildAll();
   };
   reader.readAsArrayBuffer(file);
 }
@@ -628,26 +673,116 @@ function filtrarEleg(rows){
   });
 }
 
-function parseCeds(rows){
+const GAS_URL='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+
+// Carrega cedentes automaticamente do Apps Script
+async function loadCedentesAuto(){
+  const el=document.getElementById('ul-ced2');
+  try{
+    if(el)el.textContent='Carregando...';
+    const r=await fetch(GAS_URL+'?sheet=CadastroCedentes');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    if(!data||data.length<2)throw new Error('Sem dados');
+    parseCedsArray(data);
+    const tot=Object.keys(CEDS).length;
+    if(el){el.textContent=tot+' cedentes';el.style.color='var(--green)';document.getElementById('uc-ced2').classList.add('done');}
+    console.log('Cedentes carregados:',tot);
+    if(TITS_ELEG.length>0)buildAll();
+  }catch(e){
+    console.error('loadCedentesAuto erro:',e);
+    if(el)el.textContent='Carregar manualmente';
+  }
+}
+
+function parseCedsArray(rows){
+  // rows[0] = cabecalho, rows[1..] = dados
   CEDS={};
-  rows.forEach(r=>{
-    const keys=Object.keys(r);
-    const cpf=normCPF(r['CPF/CNPJ']||r[keys[1]]||'');
+  rows.slice(1).forEach(row=>{
+    if(!row||!row.length)return;
+    const cpf=normCPF(row[1]);
     if(!cpf)return;
-    const riscoAtual=parseVal(r['RISCO ATUAL']||r[keys[29]]||0);
+    const riscoAtual=parseVal(row[29]||0);
     CEDS[cpf]={
-      nome:String(r['NOME']||r[keys[0]]||'').trim(),
-      operador:String(r['OPERADOR']||r[keys[9]]||'').trim(),
-      controlador:String(r['CONTROLADOR']||r[keys[11]]||'').trim(),
-      grupo:String(r['GRUPO ECONÔMICO']||r[keys[16]]||'').trim(),
-      bloqueado:(String(r['BLOQUEADO']||r[keys[17]]||'').trim().toLowerCase()==='sim'),
+      nome:String(row[0]||'').trim(),
+      operador:String(row[9]||'').trim(),
+      controlador:String(row[11]||'').trim(),
+      grupo:String(row[16]||'').trim(),
+      bloqueado:false,
       semRisco:(riscoAtual===0),
-      dataCad:String(r['DATA DE CADASTRO']||r[keys[13]]||'').trim(),
-      limiteGlobal:parseVal(r['LIMITE GLOBAL']||r[keys[19]]||0),
+      dataCad:String(row[13]||'').trim(),
+      primeiraOp:String(row[18]||'').trim(),
       riscoAtual,
-      saldo:parseVal(r['SALDO']||r[keys[30]]||0)
     };
   });
+}
+
+function parseCeds(rows){
+  CEDS={};
+  if(!rows||!rows.length)return;
+  // Detectar se e array de arrays (do Apps Script) ou array de objetos (do XLSX)
+  const isArrayFormat=Array.isArray(rows[0]);
+  if(isArrayFormat){
+    parseCedsArray(rows);
+    return;
+  }
+  // Formato objeto (upload XLSX)
+  rows.forEach(r=>{
+    const keys=Object.keys(r);
+    const norm=s=>String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const getF=(names)=>{
+      for(const n of names){
+        const v=r[n];if(v!==undefined&&v!=='')return String(v).trim();
+        // Tenta normalizado
+        const vn=Object.keys(r).find(k=>norm(k)===norm(n));
+        if(vn&&r[vn]!==undefined&&r[vn]!=='')return String(r[vn]).trim();
+      }
+      return'';
+    };
+    const cpf=normCPF(getF(['CPF/CNPJ','CPF_CNPJ'])||r[keys[1]]||'');
+    if(!cpf)return;
+    const riscoAtual=parseVal(getF(['RISCO ATUAL','RISCO_ATUAL'])||r[keys[29]]||0);
+    CEDS[cpf]={
+      nome:String(getF(['NOME','NOME CEDENTE'])||r[keys[0]]||'').trim(),
+      operador:String(getF(['OPERADOR'])||r[keys[9]]||'').trim(),
+      controlador:String(getF(['CONTROLADOR'])||r[keys[11]]||'').trim(),
+      grupo:String(getF(['GRUPO ECONÔMICO','GRUPO ECONOMICO','GRUPO'])||r[keys[16]]||'').trim(),
+      bloqueado:false,
+      semRisco:(riscoAtual===0),
+      dataCad:String(getF(['DATA DE CADASTRO'])||r[keys[13]]||'').trim(),
+      primeiraOp:String(getF(['PRIMEIRA OPERAÇÃO','PRIMEIRA OPERACAO'])||r[keys[18]]||'').trim(),
+      riscoAtual,
+    };
+  });
+  console.log('parseCeds (xlsx): carregados',Object.keys(CEDS).length);
+}
+
+function parseCedsFromArray(rows){
+  const headers=rows[0];
+  const norm=s=>String(s||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const hIdx={};
+  headers.forEach((h,i)=>hIdx[norm(h)]=i);
+  const getH=(row,name)=>{const i=hIdx[norm(name)];return(i!==undefined?row[i]:'')||'';};
+  const byCol=(row,letra)=>{const m={A:0,B:1,J:9,L:11,N:13,Q:16,S:18,AD:29};return row[m[letra]!==undefined?m[letra]:0]||'';};
+  CEDS={};
+  rows.slice(1).forEach(row=>{
+    if(!row||!row.length)return;
+    const cpf=normCPF(getH(row,'CPF/CNPJ')||byCol(row,'B'));
+    if(!cpf)return;
+    const riscoAtual=parseVal(getH(row,'RISCO ATUAL')||byCol(row,'AD'));
+    CEDS[cpf]={
+      nome:String(getH(row,'NOME CEDENTE')||getH(row,'NOME')||byCol(row,'A')||'').trim(),
+      operador:String(getH(row,'OPERADOR')||byCol(row,'J')||'').trim(),
+      controlador:String(getH(row,'CONTROLADOR')||byCol(row,'L')||'').trim(),
+      grupo:String(getH(row,'GRUPO ECONOMICO')||getH(row,'GRUPO')||byCol(row,'Q')||'').trim(),
+      bloqueado:false,
+      semRisco:(riscoAtual===0),
+      dataCad:String(getH(row,'DATA DE CADASTRO')||byCol(row,'N')||'').trim(),
+      primeiraOp:String(getH(row,'PRIMEIRA OPERACAO')||byCol(row,'S')||'').trim(),
+      riscoAtual,
+    };
+  });
+  console.log('parseCedsFromArray: carregados',Object.keys(CEDS).length);
 }
 
 // Carrega CadastroCedentes direto do Google Sheets
