@@ -1359,6 +1359,40 @@ async function deleteUser(i){if(!confirm(`Remover ${USERS[i].nome}?`))return;USE
 async function addUser(){USERS.push({nome:'Novo usuário',perfil:'operadora',pin:'0000',cor:'#2dd4a0',iniciais:'NU'});await saveUsersSheets();renderUsuariosPage();renderLoginUsers();}
 async function saveUsersSheets(){const rows=[['NOME','PERFIL','PIN','COR','INICIAIS']];USERS.forEach(u=>rows.push([u.nome,u.perfil,u.pin,u.cor,u.iniciais]));await sSet('Usuarios!A1',rows);}
 
+
+async function loadCedentesAuto(){
+  const el=document.getElementById('ul-ced2');
+  try{
+    if(el)el.textContent='Carregando...';
+    const r=await fetch('https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec?sheet=CadastroCedentes');
+    const data=await r.json();
+    CEDS={};
+    data.slice(1).forEach(row=>{
+      if(!row||!row[1])return;
+      const cpf=normCPF(row[1]);
+      if(!cpf)return;
+      const riscoAtual=parseVal(row[29]||0);
+      CEDS[cpf]={
+        nome:String(row[0]||'').trim(),
+        operador:String(row[9]||'').trim(),
+        controlador:String(row[11]||'').trim(),
+        grupo:String(row[16]||'').trim(),
+        bloqueado:false,semRisco:(riscoAtual===0),
+        dataCad:String(row[13]||'').trim(),
+        primeiraOp:String(row[18]||'').trim(),
+        riscoAtual
+      };
+    });
+    const tot=Object.keys(CEDS).length;
+    if(el){el.textContent=tot+' cedentes';el.style.color='var(--green)';document.getElementById('uc-ced2').classList.add('done');}
+    console.log('Cedentes carregados:',tot);
+    if(TITS_ELEG.length>0)buildAll();
+  }catch(e){
+    console.error('loadCedentesAuto erro:',e);
+    if(el)el.textContent='Carregar manualmente';
+  }
+}
+
 // INIT
 loadUsers();
 </script>
