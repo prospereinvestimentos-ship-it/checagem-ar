@@ -671,9 +671,7 @@ function enterApp(){
   document.getElementById('sb-name').textContent=currentUser.nome;
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   applyPerms();
-  loadCedentesAuto().then(()=>{
-    loadTitulosSheets();
-  });
+  loadCedentesAuto();
   loadConfig();
   loadObs();
 }
@@ -764,8 +762,6 @@ function loadFile(inp,tipo){
       TITS_ELEG=filtrarEleg(raw);
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
-      // Salvar titulos no Sheets em background
-      salvarTitulosSheets(raw,currentUser?currentUser.nome:'');
     }
     if(TITS_ELEG.length>0) buildAll();
   };
@@ -2003,25 +1999,17 @@ async function loadTitulosSheets(){
   const card=document.getElementById('uc-tit2');
   try{
     if(el)el.textContent='Carregando...';
-    // Verificar metadado
-    let meta=[];
-    try{meta=await sGet('TitulosAbertoAR_Meta!A1:C1');}catch(e){}
-    if(!meta||!meta[0]||!meta[0][0]){
-      if(el)el.textContent='Carregar .xlsx';
-      return false;
-    }
-    // Carregar em lotes para evitar timeout do Apps Script
-    const GAS='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
-    if(el)el.textContent='Carregando dados...';
-    const resp=await fetch(GAS+'?sheet=TitulosAbertoAR');
+    // Ler via API Key (rapido para leitura)
+    const url=`${BASE}/values/${encodeURIComponent('TitulosAbertoAR!A:AE')}?key=${API_KEY}`;
+    const resp=await fetch(url);
     if(!resp.ok){if(el)el.textContent='Carregar .xlsx';return false;}
-    const rows=await resp.json();
-    if(!rows||rows.length<2){
+    const json=await resp.json();
+    if(json.error||!json.values||json.values.length<2){
       if(el)el.textContent='Carregar .xlsx';
       return false;
     }
-    const headers=rows[0];
-    const raw=rows.slice(1).map(r=>{
+    const headers=json.values[0];
+    const raw=json.values.slice(1).map(r=>{
       const obj={};
       headers.forEach((h,i)=>obj[h]=r[i]||'');
       return obj;
@@ -2029,8 +2017,16 @@ async function loadTitulosSheets(){
     TITS=raw;
     TITS_ELEG=filtrarEleg(raw);
     if(card)card.classList.add('done');
-    const d=new Date(meta[0][1]);
-    const subtext=`${TITS_ELEG.length} elegiveis · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
+    // Ler metadado
+    let subtext=TITS_ELEG.length+' elegiveis';
+    try{
+      const metaResp=await fetch(`${BASE}/values/TitulosAbertoAR_Meta!A1:C1?key=${API_KEY}`);
+      const metaJson=await metaResp.json();
+      if(metaJson.values&&metaJson.values[0]&&metaJson.values[0][0]){
+        const d=new Date(metaJson.values[0][1]);
+        subtext+=` · ${metaJson.values[0][0]} ${d.toLocaleDateString('pt-BR')}`;
+      }
+    }catch(e){}
     if(el){el.textContent=subtext;el.style.color='var(--green)';}
     console.log('TitulosAbertoAR carregado:',raw.length,'linhas');
     if(TITS_ELEG.length>0)buildAll();
