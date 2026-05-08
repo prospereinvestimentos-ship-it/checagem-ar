@@ -572,12 +572,12 @@ const ROLE_LABELS={admin:'Admin',supervisora:'Supervisora',operadora:'Operadora'
 const HCL={COM:'bg',ISE:'bb',SER:'ba',SC:'ba',FRA:'br',RET:'bb',NE:'ba',DEV:'br',NPT:'br',LSC:'br',PC:'ba',REC:'br',SUB:'bgr',CONFIRMADO:'bg'};
 
 // ── SHEETS ──
-const SCRIPT_URL='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
 
 async function sGet(range){
   try{
     const sheet=range.split('!')[0];
-    const url='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec?sheet='+encodeURIComponent(sheet);
+    const url='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec?sheet='+encodeURIComponent(sheet);
     const r=await fetch(url);
     if(!r.ok){console.error('sGet erro',r.status,sheet);return[];}
     const data=await r.json();
@@ -590,15 +590,16 @@ async function sGet(range){
 async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
-    // Usar Apps Script para escrita (sem CORS, sem auth)
-    const r=await fetch('https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sheet,rows:values})
-    });
-    const d=await r.json();
-    if(d.erro)console.error('sSet erro:',d.erro);
-    else console.log('sSet ok:',sheet,d.linhas,'linhas');
+    const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
+    const payload=JSON.stringify({sheet,rows:values});
+    let iframe=document.getElementById('_sset_frame_');
+    if(!iframe){iframe=document.createElement('iframe');iframe.name='_sset_frame_';iframe.id='_sset_frame_';iframe.style.display='none';document.body.appendChild(iframe);}
+    const form=document.createElement('form');
+    form.method='POST';form.action=GAS;form.target='_sset_frame_';form.style.display='none';
+    const inp=document.createElement('input');inp.type='hidden';inp.name='payload';inp.value=payload;
+    form.appendChild(inp);document.body.appendChild(form);form.submit();document.body.removeChild(form);
+    console.log('sSet enviado:',sheet,values.length,'linhas');
+    await new Promise(r=>setTimeout(r,1500));
   }catch(e){console.error('sSet erro',e);}
 }
 
@@ -631,7 +632,7 @@ function checkPin(){const u=USERS[selIdx];if(pinBuffer===String(u.pin)){currentU
 async function loadCedentesSheets(){
   const el=document.getElementById('ul-ced2');
   try{
-    const url='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec?sheet=CadastroCedentes';
+    const url='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec?sheet=CadastroCedentes';
     const r=await fetch(url);
     if(!r.ok)throw new Error('HTTP '+r.status);
     const rows=await r.json();
@@ -797,7 +798,7 @@ function filtrarEleg(rows){
   });
 }
 
-const GAS_URL='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
 const GAS_URL_PATCH=GAS_URL;
 
 // Carrega cedentes automaticamente do Apps Script
@@ -1905,7 +1906,7 @@ async function loadCedentesAuto(){
   const el=document.getElementById('ul-ced2');
   try{
     if(el)el.textContent='Carregando...';
-    const r=await fetch('https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec?sheet=CadastroCedentes');
+    const r=await fetch('https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec?sheet=CadastroCedentes');
     const data=await r.json();
     CEDS={};
     data.slice(1).forEach(row=>{
