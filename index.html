@@ -377,6 +377,18 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
           </select>
           <span style="font-size:11px;color:var(--text2)" id="hist-stats"></span>
         </div>
+        <!-- Filtro de grupo -->
+        <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
+          <select id="hist-grp-filter" onchange="renderContatos();renderLembretes();renderCal();renderGraficoContatos()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
+            <option value="">Todos os grupos</option>
+          </select>
+          <span style="font-size:11px;color:var(--text2)" id="hist-stats"></span>
+        </div>
+        <!-- Gráfico contatos -->
+        <div class="section" style="margin-bottom:1.25rem">
+          <div class="section-hdr"><div class="section-title">📊 Contatos por controladora</div></div>
+          <div class="section-body" id="hist-grafico" style="padding:.75rem"></div>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem;margin-bottom:1.25rem">
           <!-- CALENDÁRIO -->
           <div class="section" style="margin-bottom:0">
@@ -585,15 +597,15 @@ async function sGet(range){
 async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
-    const GAS='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
-    // Usar no-cors para evitar bloqueio CORS no POST
-    await fetch(GAS,{
+    // Usar Apps Script para escrita (sem CORS, sem auth)
+    const r=await fetch('https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec',{
       method:'POST',
-      mode:'no-cors',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sheet,rows:values})
     });
-    console.log('sSet enviado:',sheet,values.length,'linhas');
+    const d=await r.json();
+    if(d.erro)console.error('sSet erro:',d.erro);
+    else console.log('sSet ok:',sheet,d.linhas,'linhas');
   }catch(e){console.error('sSet erro',e);}
 }
 
@@ -671,7 +683,9 @@ function enterApp(){
   document.getElementById('sb-name').textContent=currentUser.nome;
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   applyPerms();
-  loadCedentesAuto();
+  loadCedentesAuto().then(()=>{
+    loadTitulosSheets();
+  });
   loadConfig();
   loadObs();
 }
@@ -762,6 +776,8 @@ function loadFile(inp,tipo){
       TITS_ELEG=filtrarEleg(raw);
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
+      // Salvar titulos no Sheets em background
+      salvarTitulosSheets(raw,currentUser?currentUser.nome:'');
     }
     if(TITS_ELEG.length>0) buildAll();
   };
@@ -1484,12 +1500,10 @@ function renderHistorico(){
   if(sel&&sel.options.length<=1){
     sel.innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
   }
-  // Popular filtro de grupos com base no CadastroCedentes
+  // Popular filtro de grupos com base nos contatos registrados
   const grpSel=document.getElementById('hist-grp-filter');
   if(grpSel){
-    const grpsCeds=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
-    const grpsContatos=[...new Set(CONTATOS.map(c=>c.cedente).filter(Boolean))];
-    const grps=[...new Set([...grpsCeds,...grpsContatos])].sort();
+    const grps=[...new Set(CONTATOS.map(c=>c.cedente).filter(Boolean))].sort();
     const cur=grpSel.value;
     grpSel.innerHTML='<option value="">Todos os grupos</option>'+grps.map(g=>`<option ${g===cur?'selected':''}>${g}</option>`).join('');
   }
@@ -2001,17 +2015,16 @@ async function loadTitulosSheets(){
   const card=document.getElementById('uc-tit2');
   try{
     if(el)el.textContent='Carregando...';
-    // Ler via API Key (rapido para leitura)
-    const url=`${BASE}/values/${encodeURIComponent('TitulosAbertoAR!A:AE')}?key=${API_KEY}`;
-    const resp=await fetch(url);
-    if(!resp.ok){if(el)el.textContent='Carregar .xlsx';return false;}
-    const json=await resp.json();
-    if(json.error||!json.values||json.values.length<2){
+    // Verificar metadado primeiro
+    let meta=[];
+    try{meta=await sGet('TitulosAbertoAR_Meta!A1:C1');}catch(e){}
+    const rows=await sGet('TitulosAbertoAR!A:ZZ');
+    if(!rows||rows.length<2){
       if(el)el.textContent='Carregar .xlsx';
       return false;
     }
-    const headers=json.values[0];
-    const raw=json.values.slice(1).map(r=>{
+    const headers=rows[0];
+    const raw=rows.slice(1).map(r=>{
       const obj={};
       headers.forEach((h,i)=>obj[h]=r[i]||'');
       return obj;
@@ -2019,7 +2032,113 @@ async function loadTitulosSheets(){
     TITS=raw;
     TITS_ELEG=filtrarEleg(raw);
     if(card)card.classList.add('done');
-    // Ler metadado
+    let subtext=TITS_ELEG.length+' elegiveis';
+    if(meta&&meta[0]&&meta[0][0]){
+      const d=new Date(meta[0][1]);
+      subtext+=` · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
+    }
+    if(el){el.textContent=subtext;el.style.color='var(--green)';}
+    console.log('TitulosAbertoAR carregado do Sheets:',raw.length,'linhas');
+    if(TITS_ELEG.length>0)buildAll();
+    return true;
+  }catch(e){
+    console.error('loadTitulosSheets erro:',e);
+    if(el)el.textContent='Carregar .xlsx';
+    return false;
+  }
+}
+
+
+function renderHistorico(){
+  const ctrls=[...new Set(Object.values(CEDS).map(c=>c.controlador).filter(Boolean))].sort();
+  const sel=document.getElementById('hist-ctrl-filter');
+  if(sel&&sel.options.length<=1){
+    sel.innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
+  }
+  const grpSel=document.getElementById('hist-grp-filter');
+  if(grpSel){
+    const grpsCeds=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+    const grpsContatos=[...new Set(CONTATOS.map(c=>c.cedente).filter(Boolean))];
+    const grps=[...new Set([...grpsCeds,...grpsContatos])].sort();
+    const cur=grpSel.value;
+    grpSel.innerHTML='<option value="">Todos os grupos</option>'+grps.map(g=>`<option ${g===cur?'selected':''}>${g}</option>`).join('');
+  }
+  renderGraficoContatos();
+  renderCal();
+  renderContatos();
+  renderLembretes();
+}
+
+function renderGraficoContatos(){
+  const el=document.getElementById('hist-grafico');
+  if(!el)return;
+  const ctrlF=document.getElementById('hist-ctrl-filter')?.value||'';
+  const grpF=document.getElementById('hist-grp-filter')?.value||'';
+  let lista=CONTATOS.filter(c=>(!ctrlF||c.controlador===ctrlF)&&(!grpF||c.cedente===grpF));
+  if(!lista.length){el.innerHTML='<div class="empty" style="padding:.5rem;font-size:12px">Nenhum contato registrado ainda</div>';return;}
+  const porCtrl={};
+  lista.forEach(c=>{porCtrl[c.controlador]=(porCtrl[c.controlador]||0)+1;});
+  const sorted=Object.entries(porCtrl).sort((a,b)=>b[1]-a[1]);
+  const max=sorted[0][1];
+  const cores=['#2dd4a0','#5b8af5','#a78bfa','#f5a623','#f05252'];
+  const stats=document.getElementById('hist-stats');
+  if(stats)stats.textContent=lista.length+' contato'+(lista.length>1?'s':'')+' registrado'+(lista.length>1?'s':'');
+  el.innerHTML=sorted.map(([ctrl,cnt],i)=>{
+    const p=Math.round(cnt/max*100);
+    return`<div class="bar-row">
+      <div class="bar-lbl" title="${ctrl}">${ctrl.split(' ')[0]}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(p,2)}%;background:${cores[i%cores.length]}"><span>${cnt}</span></div></div>
+      <div class="bar-pct">${Math.round(cnt/lista.length*100)}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderContatos(filterDate=null){
+  const ctrlF=document.getElementById('hist-ctrl-filter')?.value||'';
+  const grpF=document.getElementById('hist-grp-filter')?.value||'';
+  let lista=CONTATOS.filter(c=>(!ctrlF||c.controlador===ctrlF)&&(!grpF||c.cedente===grpF));
+  if(filterDate)lista=lista.filter(c=>c.data&&c.data.startsWith(filterDate));
+  lista.sort((a,b)=>new Date(b.data)-new Date(a.data));
+  const el=document.getElementById('contatos-lista');
+  if(!el)return;
+  el.innerHTML=lista.length?lista.map((c,idx)=>{
+    const podeEditar=currentUser.perfil==='admin'||c.usuario===currentUser.nome;
+    const uObj=USERS.find(u=>u.nome===c.usuario);
+    const cor=uObj?uObj.cor:'var(--text3)';
+    return`<div class="contato-item" style="position:relative;overflow:hidden">
+      <div style="position:absolute;right:8px;bottom:5px;font-size:9px;color:var(--text3);opacity:.35;font-style:italic">${c.usuario||''}</div>
+      <div class="contato-item-hdr">
+        <span style="font-size:14px">📞</span>
+        <div class="contato-cedente">${c.cedente||'—'}</div>
+        <div class="contato-meta" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <span style="background:${cor}22;color:${cor};padding:1px 6px;border-radius:100px;font-size:9px;font-weight:500">${c.controlador}</span>
+          <span>${c.data?new Date(c.data+'T12:00').toLocaleDateString('pt-BR'):''}</span>
+        </div>
+        ${podeEditar?`<button class="obs-btn" onclick="deleteContato(${idx})" style="color:var(--red);margin-left:6px">✕</button>`:''}
+      </div>
+      <div class="contato-obs">${c.obs||''}</div>
+    </div>`;
+  }).join(''):'<div class="empty" style="padding:1rem;font-size:12px">Nenhum contato registrado</div>';
+}
+
+async function loadTitulosSheets(){
+  const el=document.getElementById('ul-tit2');
+  const card=document.getElementById('uc-tit2');
+  try{
+    if(el)el.textContent='Carregando...';
+    const url=`${BASE}/values/${encodeURIComponent('TitulosAbertoAR!A:AE')}?key=${API_KEY}`;
+    const resp=await fetch(url);
+    if(!resp.ok){if(el)el.textContent='Carregar .xlsx';return false;}
+    const json=await resp.json();
+    if(json.error||!json.values||json.values.length<2){
+      if(el)el.textContent='Carregar .xlsx';return false;
+    }
+    const headers=json.values[0];
+    const raw=json.values.slice(1).map(r=>{
+      const obj={};headers.forEach((h,i)=>obj[h]=r[i]||'');return obj;
+    });
+    TITS=raw;TITS_ELEG=filtrarEleg(raw);
+    if(card)card.classList.add('done');
     let subtext=TITS_ELEG.length+' elegiveis';
     try{
       const metaResp=await fetch(`${BASE}/values/TitulosAbertoAR_Meta!A1:C1?key=${API_KEY}`);
@@ -2030,14 +2149,35 @@ async function loadTitulosSheets(){
       }
     }catch(e){}
     if(el){el.textContent=subtext;el.style.color='var(--green)';}
-    console.log('TitulosAbertoAR carregado:',raw.length,'linhas');
     if(TITS_ELEG.length>0)buildAll();
     return true;
   }catch(e){
-    console.error('loadTitulosSheets erro:',e);
-    if(el)el.textContent='Carregar .xlsx';
-    return false;
+    if(el)el.textContent='Carregar .xlsx';return false;
   }
+}
+
+async function salvarTitulosSheets(rows,usuario){
+  if(!rows||!rows.length)return;
+  const el=document.getElementById('ul-tit2');
+  if(el)el.textContent='Salvando no Sheets...';
+  try{
+    const keys=Object.keys(rows[0]);
+    const data=[keys,...rows.map(r=>keys.map(k=>r[k]!==undefined?String(r[k]):''))];
+    const meta=[[usuario,new Date().toISOString(),rows.length+'']];
+    await sSet('TitulosAbertoAR!A1',data);
+    await sSet('TitulosAbertoAR_Meta!A1',meta);
+    if(el){el.textContent=TITS_ELEG.length+' elegiveis · salvo ✓';el.style.color='var(--green)';}
+  }catch(e){
+    if(el)el.textContent=TITS_ELEG.length+' elegiveis';
+  }
+}
+
+function selectCalDay(dateStr){
+  _calSelected=dateStr;
+  renderCal();
+  renderContatos(dateStr);
+  const label=new Date(dateStr+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('tl-title').textContent='📅 '+label;
 }
 
 // INIT
