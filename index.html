@@ -585,15 +585,15 @@ async function sGet(range){
 async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
-    // Usar Apps Script para escrita (sem CORS, sem auth)
-    const r=await fetch('https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec',{
+    const GAS='https://script.google.com/macros/s/AKfycbxs84gxAU_uXtK4978xANDx9Z8wiaU79w4eekXlazGJSVVBHRdnO7UHKWE4tBKBvb8W/exec';
+    // Usar no-cors para evitar bloqueio CORS no POST
+    await fetch(GAS,{
       method:'POST',
+      mode:'no-cors',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sheet,rows:values})
     });
-    const d=await r.json();
-    if(d.erro)console.error('sSet erro:',d.erro);
-    else console.log('sSet ok:',sheet,d.linhas,'linhas');
+    console.log('sSet enviado:',sheet,values.length,'linhas');
   }catch(e){console.error('sSet erro',e);}
 }
 
