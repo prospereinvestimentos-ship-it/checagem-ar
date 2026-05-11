@@ -707,10 +707,10 @@ function enterApp(){
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   initTheme();
   applyPerms();
-  loadCedentesAuto().then(()=>{
+  Promise.all([loadCedentesAuto()]).then(()=>{
+    loadConfig();
     loadTitulosSheets();
   });
-  loadConfig();
   loadObs();
 }
 function applyPerms(){
