@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0f1117;--bg2:#161820;--bg3:#1e2028;--bg4:#252730;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#e8e9f0;--text2:#9294a0;--text3:#5a5c68;--green:#2dd4a0;--green-bg:rgba(45,212,160,0.1);--amber:#f5a623;--amber-bg:rgba(245,166,35,0.1);--red:#f05252;--red-bg:rgba(240,82,82,0.1);--blue:#5b8af5;--blue-bg:rgba(91,138,245,0.1);--purple:#a78bfa;--purple-bg:rgba(167,139,250,0.1);--orange:#fb923c;--orange-bg:rgba(251,146,60,0.1);--yellow:#fbbf24;--yellow-bg:rgba(251,191,36,0.1);--radius:10px;--radius-sm:6px}
+body.light-mode{--bg:#f0f2f7;--bg2:#ffffff;--bg3:#f0f2f7;--bg4:#e4e7ef;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);--text:#1a1d2e;--text2:#5a5c78;--text3:#9294a0;--green:#1ab889;--green-bg:rgba(26,184,137,0.1);--amber:#d4860a;--amber-bg:rgba(212,134,10,0.1);--red:#d63b3b;--red-bg:rgba(214,59,59,0.1);--blue:#3d6fd4;--blue-bg:rgba(61,111,212,0.1);--purple:#7c5cd4;--purple-bg:rgba(124,92,212,0.1);--orange:#d4631a;--orange-bg:rgba(212,99,26,0.1)}
+
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
 /* LOGIN */
@@ -298,6 +300,9 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       </div>
     </div>
     <div class="sidebar-user">
+      <div style="padding:0 1.25rem .75rem;border-bottom:1px solid var(--border);margin-bottom:.75rem">
+        <button onclick="toggleTheme()" id="theme-btn" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;transition:all .15s">🌙 Tema escuro</button>
+      </div>
       <div class="su-inner">
         <div class="uav" id="sb-av" style="width:32px;height:32px;font-size:12px;font-weight:600"></div>
         <div style="flex:1;min-width:0"><div class="su-name" id="sb-name"></div><div class="su-role" id="sb-role"></div></div>
@@ -331,7 +336,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
           <div class="filters">
             <select id="f-hist" onchange="renderOps()"><option value="">Todos os históricos</option></select>
             <select id="f-conf" onchange="renderOps()"><option value="">Todos (CONF)</option><option value="C">C — Confirmado</option><option value="P">P — Pendente</option></select>
-            <select id="f-prazo" onchange="renderOps()"><option value="">Todos os prazos</option><option value="ok">Dentro do prazo</option><option value="alerta">Alerta prazo</option><option value="vencido">Prazo vencido</option><option value="sem">Sem prazo</option><option value="isento">Isentos</option></select>
+            <select id="f-prazo" onchange="renderOps()"><option value="">Todos os prazos</option><option value="ok">Dentro do prazo</option><option value="alerta">Alerta prazo</option><option value="vencido">Prazo vencido</option><option value="sem">Sem prazo</option><option value="isento">Isentos</option><option value="noAto">Checar no ato</option></select>
             <select id="f-alerta" onchange="renderOps()"><option value="">Todos</option><option value="sim">Com alerta</option><option value="nao">Sem alerta</option></select>
             <select id="f-ctrl" onchange="renderOps()"><option value="">Todos os controladores</option></select>
             <select id="f-grp" onchange="renderOps()"><option value="">Todos os grupos</option></select>
@@ -498,8 +503,8 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         </div>
         <div class="tab-c active" id="ctab-prazos">
           <div class="section"><div class="section-body">
-            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 70px 80px 36px">
-              <span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>Isento</span><span></span>
+            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 70px 70px 80px 36px">
+              <span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>No ato</span><span>Isento</span><span></span>
             </div>
             <div id="cfg-prazos-rows"></div>
             <button class="btn-add" onclick="addPrazoRow()">+ Adicionar grupo</button>
@@ -591,15 +596,18 @@ async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
-    const payload=JSON.stringify({sheet,rows:values});
-    let iframe=document.getElementById('_sset_frame_');
-    if(!iframe){iframe=document.createElement('iframe');iframe.name='_sset_frame_';iframe.id='_sset_frame_';iframe.style.display='none';document.body.appendChild(iframe);}
-    const form=document.createElement('form');
-    form.method='POST';form.action=GAS;form.target='_sset_frame_';form.style.display='none';
-    const inp=document.createElement('input');inp.type='hidden';inp.name='payload';inp.value=payload;
-    form.appendChild(inp);document.body.appendChild(form);form.submit();document.body.removeChild(form);
+    // Enviar via script tag (JSONP) - funciona sem CORS
+    const data=encodeURIComponent(JSON.stringify({sheet,rows:values}));
+    await new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      const cb='_sset_'+Date.now();
+      window[cb]=()=>{delete window[cb];script.remove();resolve();};
+      script.src=GAS+'?action=set&cb='+cb+'&data='+data;
+      script.onerror=()=>{delete window[cb];script.remove();resolve();};
+      document.head.appendChild(script);
+      setTimeout(resolve,5000);
+    });
     console.log('sSet enviado:',sheet,values.length,'linhas');
-    await new Promise(r=>setTimeout(r,1500));
   }catch(e){console.error('sSet erro',e);}
 }
 
@@ -676,6 +684,7 @@ function enterApp(){
   const av=document.getElementById('sb-av');av.style.background=currentUser.cor+'22';av.style.color=currentUser.cor;av.textContent=currentUser.iniciais;
   document.getElementById('sb-name').textContent=currentUser.nome;
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
+  initTheme();
   applyPerms();
   loadCedentesAuto().then(()=>{
     loadTitulosSheets();
@@ -776,8 +785,10 @@ function loadFile(inp,tipo){
       TITS_ELEG=filtrarEleg(raw);
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
-      // Salvar titulos no Sheets em background
-      salvarTitulosSheets(raw,currentUser?currentUser.nome:'');
+      // Admin e Supervisora podem salvar no Sheets
+      if(currentUser&&(currentUser.perfil==='admin'||currentUser.perfil==='supervisora')){
+        salvarTitulosSheets(raw,currentUser.nome);
+      }
     }
     if(TITS_ELEG.length>0) buildAll();
   };
@@ -928,11 +939,11 @@ function prazoSt(r){
   const ci=getCed(r);
   if(isGrupoIsento(ci.grupo))return'isento';
   const pr=getPrazoGrupo(ci.grupo);
-  if(!pr||(!pr.pedido&&!pr.entrega))return'sem';
+  if(!pr||(!pr.pedido&&!pr.entrega))return pr&&pr.noAto?'noAto':'sem';
   const dp=diasD(r['DATA EMISSÃO']||gc(r,10));
   if(dp===null)return'sem';
   const tot=(parseInt(pr.pedido)||0)+(parseInt(pr.entrega)||0);
-  if(!tot)return'sem';
+  if(!tot)return pr&&pr.noAto?'noAto':'sem';
   if(dp>tot)return'vencido';
   if(dp>=tot-2)return'alerta';
   return'ok';
@@ -1026,7 +1037,7 @@ function renderDash(){
   const recompra=notas.filter(({r})=>hist(r)==='REC').length;
 
   // Prazo por nota unica
-  const ps={ok:0,alerta:0,vencido:0,sem:0,isento:0};
+  const ps={ok:0,alerta:0,vencido:0,sem:0,isento:0,noAto:0};
   notas.forEach(({r})=>ps[prazoSt(r)]++);
 
   // Alertas por nota unica (usa o idx da row representativa)
@@ -1109,7 +1120,7 @@ function renderDash(){
   </div>
   <div class="section" style="margin-bottom:0">
     <div class="section-hdr"><div class="section-title">Situacao dos prazos (por nota)</div></div>
-    <div class="section-body">${mkDonut('d2',[ps.ok,ps.alerta,ps.vencido,ps.isento,ps.sem],['#2dd4a0','#f5a623','#f05252','#5b8af5','#5a5c68'],['No prazo','Alerta','Vencido','Isento','Sem config.'])}</div>
+    <div class="section-body">${mkDonut('d2',[ps.ok,ps.alerta,ps.vencido,ps.isento,ps.noAto,ps.sem],['#2dd4a0','#f5a623','#f05252','#5b8af5','#fb923c','#5a5c68'],['No prazo','Alerta','Vencido','Isento','No ato','Sem config.'])}</div>
   </div>
 </div>
 <div class="grid2" style="margin-bottom:1.25rem">
@@ -1315,8 +1326,8 @@ function renderOps(){
   const fCt=document.getElementById('f-ctrl').value;
   const fG=document.getElementById('f-grp').value;
   const fS=document.getElementById('f-srch').value.toLowerCase();
-  const PL={ok:'No prazo',alerta:'Alerta',vencido:'Vencido',sem:'Sem config.',isento:'Isento'};
-  const PC={ok:'bg',alerta:'ba',vencido:'br',sem:'bgr',isento:'bb'};
+  const PL={ok:'No prazo',alerta:'Alerta',vencido:'Vencido',sem:'Sem config.',isento:'Isento',noAto:'⚡ No ato'};
+  const PC={ok:'bg',alerta:'ba',vencido:'br',sem:'bgr',isento:'bb',noAto:'bo'};
   const rows=TITS_ELEG.map((r,i)=>({r,i,a:_alertMap[i]||{alertas:[],nivel:'ok'}})).filter(({r,a})=>{
     const h=String(r['HISTORICO']||gc(r,24)).trim();
     const c=String(r['CONF']||gc(r,1)).trim().toUpperCase();
@@ -1836,11 +1847,14 @@ function renderCfgPage(){
 
 function renderPrazosRows(canEdit){
   document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
-    <div class="cfg-row" style="grid-template-columns:1fr 90px 90px 70px 80px 36px">
+    <div class="cfg-row" style="grid-template-columns:1fr 90px 90px 70px 70px 80px 36px">
       <input type="text" readonly value="${grp}">
       <input type="number" min="0" value="${pr.pedido}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')">
       <input type="number" min="0" value="${pr.entrega}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')">
       <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}">
+      <div style="display:flex;align-items:center;justify-content:center">
+        <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" title="Checar no ato" style="width:16px;height:16px;cursor:pointer">
+      </div>
       <div style="display:flex;align-items:center;justify-content:center">
         <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" title="Isento de checagem" style="width:16px;height:16px;cursor:pointer">
       </div>
@@ -1866,7 +1880,7 @@ function addRegraRow(){const k='manual_'+Date.now();REGRAS_CED[k]={nome:'Cedente
 async function saveConfig(){
   DEFAULT_RULES={min:parseFloat(document.getElementById('dr-min').value)||0,cedPct:parseFloat(document.getElementById('dr-ced-pct').value)||20,cedVal:parseFloat(document.getElementById('dr-ced-val').value)||100000,sacPct:parseFloat(document.getElementById('dr-sac-pct').value)||20,sacVal:parseFloat(document.getElementById('dr-sac-val').value)||100000,dias:parseInt(document.getElementById('dr-dias').value)||7};
   const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS','ISENTO']];
-  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'']));
+  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'',p.noAto?'SIM':''  ]));
   await sSet('Prazo!A1',pRows); // A:D inclui ISENTO
   const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],
     ['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
@@ -2183,8 +2197,36 @@ function selectCalDay(dateStr){
   document.getElementById('tl-title').textContent='📅 '+label;
 }
 
+
+function toggleTheme(){
+  const isLight=document.body.classList.toggle('light-mode');
+  const btn=document.getElementById('theme-btn');
+  if(btn)btn.textContent=isLight?'🌙 Tema escuro':'☀️ Tema claro';
+  localStorage.setItem('theme',isLight?'light':'dark');
+}
+function initTheme(){
+  const saved=localStorage.getItem('theme');
+  if(saved==='light'){document.body.classList.add('light-mode');const btn=document.getElementById('theme-btn');if(btn)btn.textContent='🌙 Tema escuro';}
+}
 // INIT
-loadUsers();
+async function checkIP(){
+  try{
+    const r=await fetch('https://api.ipify.org?format=json');
+    const d=await r.json();
+    const allowed=['72.14.201.193','177.115.216.176'];
+    if(!allowed.includes(d.ip)){
+      document.body.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f1117;flex-direction:column;gap:16px">
+        <div style="font-size:40px">🔒</div>
+        <div style="font-size:20px;font-weight:600;color:#e8e9f0">Acesso não autorizado</div>
+        <div style="font-size:13px;color:#9294a0">Este sistema só pode ser acessado da rede autorizada.</div>
+        <div style="font-size:11px;color:#5a5c68;margin-top:8px">IP: ${d.ip}</div>
+      </div>`;
+      return false;
+    }
+  }catch(e){console.warn('IP check falhou, permitindo acesso:',e);}
+  return true;
+}
+checkIP().then(ok=>{ if(ok) loadUsers(); });
 </script>
 </body>
 </html>
