@@ -503,8 +503,8 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         </div>
         <div class="tab-c active" id="ctab-prazos">
           <div class="section"><div class="section-body">
-            <div class="cfg-hdr" style="grid-template-columns:80px 1fr 90px 90px 70px 70px 36px">
-              <span>Isento</span><span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>No ato</span><span></span>
+            <div class="cfg-hdr" style="grid-template-columns:60px 60px 1fr 80px 80px 60px 36px">
+              <span>Isento</span><span>No ato</span><span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span></span>
             </div>
             <div id="cfg-prazos-rows"></div>
             <button class="btn-add" onclick="addPrazoRow()">+ Adicionar grupo</button>
@@ -1868,20 +1868,23 @@ function renderCfgPage(){
 
 function renderPrazosRows(canEdit){
   document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
-    <div class="cfg-row" style="grid-template-columns:80px 1fr 90px 90px 70px 70px 36px">
-      <div style="display:flex;align-items:center;justify-content:center">
-        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" title="Isento de checagem" style="width:16px;height:16px;cursor:pointer">
+    <div class="cfg-row" style="grid-template-columns:60px 60px 1fr 80px 80px 60px 36px;align-items:center">
+      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text2)">Isento</span>
+        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" style="width:16px;height:16px;cursor:pointer">
       </div>
-      <input type="text" readonly value="${grp}">
-      <input type="number" min="0" value="${pr.pedido}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')">
-      <input type="number" min="0" value="${pr.entrega}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')">
-      <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}">
-      <div style="display:flex;align-items:center;justify-content:center">
-        <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" title="Checar no ato" style="width:16px;height:16px;cursor:pointer">
+      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text2)">No ato</span>
+        <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" style="width:16px;height:16px;cursor:pointer">
       </div>
+      <input type="text" readonly value="${grp}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" value="${pr.pedido}" placeholder="Ped." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" value="${pr.entrega}" placeholder="Ent." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
       ${canEdit?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
-    </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado — carregue o CadastroCedentes para popular automaticamente</div>';
+    </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado</div>';
 }
+
 function updTot(inp,grp){const el=document.getElementById('tot-'+grp.replace(/\s/g,'_'));if(el)el.value=calcTot(PRAZOS_GRUPO[grp]);}
 function addPrazoRow(){const k='Novo grupo '+Date.now();PRAZOS_GRUPO[k]={pedido:'',entrega:''};renderPrazosRows(true);}
 
