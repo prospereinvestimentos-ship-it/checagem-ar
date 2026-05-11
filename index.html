@@ -503,8 +503,8 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         </div>
         <div class="tab-c active" id="ctab-prazos">
           <div class="section"><div class="section-body">
-            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 70px 70px 80px 36px">
-              <span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>No ato</span><span>Isento</span><span></span>
+            <div class="cfg-hdr" style="grid-template-columns:80px 1fr 90px 90px 70px 70px 36px">
+              <span>Isento</span><span>Grupo econômico</span><span>Ped. (dias)</span><span>Ent. (dias)</span><span>Total</span><span>No ato</span><span></span>
             </div>
             <div id="cfg-prazos-rows"></div>
             <button class="btn-add" onclick="addPrazoRow()">+ Adicionar grupo</button>
@@ -596,17 +596,38 @@ async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
-    // Enviar via script tag (JSONP) - funciona sem CORS
-    const data=encodeURIComponent(JSON.stringify({sheet,rows:values}));
-    await new Promise((resolve,reject)=>{
-      const script=document.createElement('script');
-      const cb='_sset_'+Date.now();
-      window[cb]=()=>{delete window[cb];script.remove();resolve();};
-      script.src=GAS+'?action=set&cb='+cb+'&data='+data;
-      script.onerror=()=>{delete window[cb];script.remove();resolve();};
-      document.head.appendChild(script);
-      setTimeout(resolve,5000);
-    });
+    // Verificar tamanho — se pequeno usa JSONP, se grande usa chunks
+    const payload=JSON.stringify({sheet,rows:values});
+    const CHUNK=5000; // chars por chunk
+    if(payload.length<=8000){
+      // JSONP direto
+      await new Promise(resolve=>{
+        const script=document.createElement('script');
+        const cb='_sset_'+Date.now();
+        window[cb]=()=>{delete window[cb];script.remove();resolve();};
+        script.onerror=()=>{delete window[cb];script.remove();resolve();};
+        script.src=GAS+'?action=set&cb='+cb+'&data='+encodeURIComponent(payload);
+        document.head.appendChild(script);
+        setTimeout(resolve,5000);
+      });
+    } else {
+      // Chunks — envia em partes
+      const id='ch_'+Date.now();
+      const chunks=[];
+      for(let i=0;i<payload.length;i+=CHUNK) chunks.push(payload.slice(i,i+CHUNK));
+      for(let i=0;i<chunks.length;i++){
+        await new Promise(resolve=>{
+          const script=document.createElement('script');
+          const cb='_sset_'+Date.now()+'_'+i;
+          window[cb]=()=>{delete window[cb];script.remove();resolve();};
+          script.onerror=()=>{delete window[cb];script.remove();resolve();};
+          const last=i===chunks.length-1?'1':'0';
+          script.src=GAS+'?action=chunk&cb='+cb+'&id='+id+'&i='+i+'&last='+last+'&data='+encodeURIComponent(chunks[i]);
+          document.head.appendChild(script);
+          setTimeout(resolve,5000);
+        });
+      }
+    }
     console.log('sSet enviado:',sheet,values.length,'linhas');
   }catch(e){console.error('sSet erro',e);}
 }
@@ -1847,16 +1868,16 @@ function renderCfgPage(){
 
 function renderPrazosRows(canEdit){
   document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
-    <div class="cfg-row" style="grid-template-columns:1fr 90px 90px 70px 70px 80px 36px">
+    <div class="cfg-row" style="grid-template-columns:80px 1fr 90px 90px 70px 70px 36px">
+      <div style="display:flex;align-items:center;justify-content:center">
+        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" title="Isento de checagem" style="width:16px;height:16px;cursor:pointer">
+      </div>
       <input type="text" readonly value="${grp}">
       <input type="number" min="0" value="${pr.pedido}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')">
       <input type="number" min="0" value="${pr.entrega}" placeholder="dias" ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')">
       <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}">
       <div style="display:flex;align-items:center;justify-content:center">
         <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" title="Checar no ato" style="width:16px;height:16px;cursor:pointer">
-      </div>
-      <div style="display:flex;align-items:center;justify-content:center">
-        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" title="Isento de checagem" style="width:16px;height:16px;cursor:pointer">
       </div>
       ${canEdit?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
     </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado — carregue o CadastroCedentes para popular automaticamente</div>';
@@ -1880,7 +1901,7 @@ function addRegraRow(){const k='manual_'+Date.now();REGRAS_CED[k]={nome:'Cedente
 async function saveConfig(){
   DEFAULT_RULES={min:parseFloat(document.getElementById('dr-min').value)||0,cedPct:parseFloat(document.getElementById('dr-ced-pct').value)||20,cedVal:parseFloat(document.getElementById('dr-ced-val').value)||100000,sacPct:parseFloat(document.getElementById('dr-sac-pct').value)||20,sacVal:parseFloat(document.getElementById('dr-sac-val').value)||100000,dias:parseInt(document.getElementById('dr-dias').value)||7};
   const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS','ISENTO']];
-  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'',p.noAto?'SIM':''  ]));
+  Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'',p.noAto?'SIM':'']));
   await sSet('Prazo!A1',pRows); // A:D inclui ISENTO
   const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],
     ['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
