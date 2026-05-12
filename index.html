@@ -968,10 +968,10 @@ function calcAlertMap(){
     if(cpfS)pendSac[cpfS]=(pendSac[cpfS]||0)+val;
   });
   return TITS_ELEG.map(r=>{
-    if(String(r['CONF']||gc(r,1)).trim().toUpperCase()!=='P')return{alertas:[],nivel:'ok'};
-    // Isentos nao geram alertas
-    const ciAlert=getCed(r);
-    if(isGrupoIsento(ciAlert.grupo))return{alertas:[],nivel:'ok'};
+    const conf=String(r['CONF']||gc(r,1)).trim().toUpperCase();
+    if(conf!=='P')return{alertas:[],alertasLimite:[],nivel:'ok',nivelLimite:'ok'};
+    const ci=getCed(r);
+    if(isGrupoIsento(ci.grupo))return{alertas:[],alertasLimite:[],nivel:'ok',nivelLimite:'ok'};
     const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
     const cpfS=normCPF(gc(r,5)||'');
     const val=parseVal(r['VALOR(R$)']||gc(r,18));
@@ -980,13 +980,22 @@ function calcAlertMap(){
     const cedVal=reg?parseFloat(reg.cedVal)||DEFAULT_RULES.cedVal:DEFAULT_RULES.cedVal;
     const sacVal=reg?parseFloat(reg.sacVal)||DEFAULT_RULES.sacVal:DEFAULT_RULES.sacVal;
     const min=reg?parseFloat(reg.min)||DEFAULT_RULES.min:DEFAULT_RULES.min;
-    const dias=DEFAULT_RULES.dias;
-    if(val<min)return{alertas:[],nivel:'ok'};
+    if(val<min)return{alertas:[],alertasLimite:[],nivel:'ok',nivelLimite:'ok'};
+    // Alertas de PRAZO - baseado nos dias configurados em Prazos e regras
     const alertas=[];
-    if((pendCed[cpfC]||0)>cedVal)alertas.push(`Pendentes cedente ${fmtVal(pendCed[cpfC]||0)} > limite ${fmtVal(cedVal)}`);
-    if(cpfS&&(pendSac[cpfS]||0)>sacVal)alertas.push(`Pendentes sacado ${fmtVal(pendSac[cpfS]||0)} > limite ${fmtVal(sacVal)}`);
-    if(dp!==null&&dp>dias)alertas.push(`Pendente há ${dp} dias (máx ${dias})`);
-    return{alertas,nivel:alertas.length>0?'bloqueio':'ok'};
+    const ps=prazoSt(r);
+    if(ps==='vencido')alertas.push(`Prazo vencido: ${dp}d sem checagem`);
+    else if(ps==='noAto')alertas.push('Checar no ato');
+    // Alertas de LIMITE - baseado em valores
+    const alertasLimite=[];
+    if((pendCed[cpfC]||0)>cedVal)alertasLimite.push(`Pendentes cedente ${fmtVal(pendCed[cpfC]||0)} > limite ${fmtVal(cedVal)}`);
+    if(cpfS&&(pendSac[cpfS]||0)>sacVal)alertasLimite.push(`Pendentes sacado ${fmtVal(pendSac[cpfS]||0)} > limite ${fmtVal(sacVal)}`);
+    return{
+      alertas,
+      alertasLimite,
+      nivel:alertas.length>0?'bloqueio':'ok',
+      nivelLimite:alertasLimite.length>0?'bloqueio':'ok'
+    };
   });
 }
 
@@ -999,7 +1008,10 @@ function buildAll(){
   });
   _alertMap=calcAlertMap();
   _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
-  const nAlert=_alertMap.filter(a=>a.nivel==='bloqueio').length;
+  const nAlert=_alertMap.filter((a,i)=>{
+    const hist=String(TITS_ELEG[i]?.['HISTORICO']||'').trim().toUpperCase();
+    return a.nivel==='bloqueio'||hist==='REC';
+  }).length;
   const badge=document.getElementById('alert-badge');
   badge.style.display=nAlert>0?'inline':'none';badge.textContent=nAlert;
   renderDash();renderFilters();renderOps();
@@ -1049,6 +1061,7 @@ function renderDash(){
 
   // Alertas por nota unica (usa o idx da row representativa)
   const bloqueios=notas.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
+  const limiteBloq=notas.filter(({idx})=>_alertMap[idx]?.nivelLimite==='bloqueio').length;
 
   // Cedentes novos - CPFs unicos com operacoes ativas
   const cpfsNovos=new Set();
@@ -1115,7 +1128,8 @@ function renderDash(){
 <div class="metrics">
   <div class="met"><div class="met-lbl">A fazer (pendentes)</div><div class="met-val mv-amber">${notasAFazer.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valFazer)}</div><div class="met-sub">${pct(notasAFazer)} das notas</div></div>
   <div class="met"><div class="met-lbl">Ja feito (confirmados)</div><div class="met-val mv-green">${notasFeito.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valFeito)}</div><div class="met-sub">${pct(notasFeito)} das notas</div></div>
-  <div class="met"><div class="met-lbl">Em alerta de bloqueio</div><div class="met-val mv-red">${bloqueios.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valAtraso)}</div><div class="met-sub">violacao de regras</div></div>
+  <div class="met"><div class="met-lbl">Prazo vencido</div><div class="met-val mv-red">${bloqueios.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valAtraso)}</div><div class="met-sub">sem checagem no prazo</div></div>
+  <div class="met" style="border-color:rgba(245,166,35,0.3)"><div class="met-lbl" style="color:var(--amber)">Limite de valor</div><div class="met-val mv-amber">${limiteBloq.toLocaleString('pt-BR')}</div><div class="met-sub" style="color:var(--amber)">acima do limite</div></div>
   <div class="met"><div class="met-lbl">Recompra (REC)</div><div class="met-val mv-orange">${recompra.toLocaleString('pt-BR')}</div><div class="met-sub">${pct(recompra)}</div></div>
   <div class="met"><div class="met-lbl">Cedentes novos</div><div class="met-val mv-purple">${novos.toLocaleString('pt-BR')}</div><div class="met-sub">ultimos 100 dias</div></div>
   ${ctrlSemCont.notas>0?`<div class="met" style="border-color:rgba(245,166,35,0.3)"><div class="met-lbl" style="color:var(--amber)">Sem controlador</div><div class="met-val mv-amber">${ctrlSemCont.notas.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(ctrlSemCont.valor)}</div><div class="met-sub" style="color:var(--amber)">atribuir responsavel</div></div>`:''}
@@ -1385,14 +1399,16 @@ function renderAlertas(){
 
   // Separar alertas de prazo vs recompra
   const prazoViol=[];
+  const limiteViol=[];
   const recViol=[];
   TITS_ELEG.forEach((r,i)=>{
     const hist=String(r['HISTORICO']||gc(r,24)).trim().toUpperCase();
     const a=_alertMap[i];
     if(hist==='REC'){
       recViol.push({r,a:{alertas:['Recompra'],nivel:'bloqueio'}});
-    } else if(a?.nivel==='bloqueio'){
-      prazoViol.push({r,a});
+    } else {
+      if(a?.nivel==='bloqueio')prazoViol.push({r,a});
+      if(a?.nivelLimite==='bloqueio')limiteViol.push({r,a:{alertas:a.alertasLimite,nivel:'bloqueio'}});
     }
   });
 
@@ -1453,15 +1469,22 @@ function renderAlertas(){
           <option value="">Todos</option>
           ${ctrls.map(c=>`<option>${c}</option>`).join('')}
         </select>
-        <span style="font-size:12px;color:var(--text2)" id="alrt-count">${prazoViol.length} prazo · ${recViol.length} recompra</span>
+        <span style="font-size:12px;color:var(--text2)" id="alrt-count">${prazoViol.length} prazo · ${limiteViol.length} limite · ${recViol.length} recompra</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem">
         <div class="section" style="margin-bottom:0">
           <div class="section-hdr">
-            <div class="section-title">⏰ Alerta de prazo</div>
+            <div class="section-title">⏰ Prazo vencido</div>
             <span class="badge br" id="alrt-prazo-cnt">${prazoViol.length}</span>
           </div>
           <div class="section-body" style="padding:.75rem" id="col-prazo"></div>
+        </div>
+        <div class="section" style="margin-bottom:0">
+          <div class="section-hdr">
+            <div class="section-title">💰 Limite de valor</div>
+            <span class="badge ba" id="alrt-limite-cnt">${limiteViol.length}</span>
+          </div>
+          <div class="section-body" style="padding:.75rem" id="col-limite"></div>
         </div>
         <div class="section" style="margin-bottom:0">
           <div class="section-hdr">
@@ -1475,6 +1498,7 @@ function renderAlertas(){
 
   // Guardar dados para o filtro
   window._prazoViol=prazoViol;
+  window._limiteViol=limiteViol;
   window._recViol=recViol;
   window._buildColuna=buildColuna;
   filtrarAlertas();
@@ -1496,15 +1520,21 @@ function filtrarAlertas(){
     :recViol;
   console.log('filtrarAlertas ctrl:',ctrlFiltro,'prazo:',pFiltrado.length,'rec:',rFiltrado.length);
   const cp=document.getElementById('col-prazo');
+  const cl=document.getElementById('col-limite');
   const cr=document.getElementById('col-rec');
+  const limiteViol=window._limiteViol||[];
+  const lFiltrado=ctrlFiltro?limiteViol.filter(({r})=>{const ct=String(getCed(r).controlador||'Sem controlador').trim();return ct===ctrlFiltro;}):limiteViol;
   if(cp)cp.innerHTML=buildColuna(pFiltrado,'');
+  if(cl)cl.innerHTML=buildColuna(lFiltrado,'');
   if(cr)cr.innerHTML=buildColuna(rFiltrado,'');
   const pc=document.getElementById('alrt-prazo-cnt');
+  const lc=document.getElementById('alrt-limite-cnt');
   const rc=document.getElementById('alrt-rec-cnt');
   const ac=document.getElementById('alrt-count');
   if(pc)pc.textContent=pFiltrado.length;
+  if(lc)lc.textContent=lFiltrado.length;
   if(rc)rc.textContent=rFiltrado.length;
-  if(ac)ac.textContent=pFiltrado.length+' prazo · '+rFiltrado.length+' recompra';
+  if(ac)ac.textContent=pFiltrado.length+' prazo · '+lFiltrado.length+' limite · '+rFiltrado.length+' recompra';
 }
 
 // ── HISTÓRICO ──
