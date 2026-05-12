@@ -489,7 +489,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="page-header">
         <div><div class="page-title">Prazos e regras</div><div class="page-sub">Configuração por grupo econômico e cedente</div></div>
         <div style="display:flex;align-items:center;gap:8px">
-          <button class="btn-save" onclick="saveConfig()">Salvar no Sheets</button>
+          <button class="btn-save" onclick="saveConfig()" title="Salva prazos e regras no Google Sheets">💾 Salvar no Sheets</button>
           <span class="save-ok" id="cfg-ok">✓ Salvo!</span>
         </div>
       </div>
@@ -596,39 +596,24 @@ async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
-    // Verificar tamanho — se pequeno usa JSONP, se grande usa chunks
     const payload=JSON.stringify({sheet,rows:values});
-    const CHUNK=5000; // chars por chunk
-    if(payload.length<=8000){
-      // JSONP direto
+    // Enviar em chunks de 3000 chars
+    const CHUNK=3000;
+    const id='s'+Date.now();
+    const chunks=[];
+    for(let i=0;i<payload.length;i+=CHUNK)chunks.push(payload.slice(i,i+CHUNK));
+    for(let i=0;i<chunks.length;i++){
       await new Promise(resolve=>{
-        const script=document.createElement('script');
-        const cb='_sset_'+Date.now();
-        window[cb]=()=>{delete window[cb];script.remove();resolve();};
-        script.onerror=()=>{delete window[cb];script.remove();resolve();};
-        script.src=GAS+'?action=set&cb='+cb+'&data='+encodeURIComponent(payload);
-        document.head.appendChild(script);
+        const s=document.createElement('script');
+        const cb='_c'+Date.now()+'x'+i;
+        window[cb]=()=>{delete window[cb];s.remove();resolve();};
+        s.onerror=()=>{delete window[cb];s.remove();resolve();};
+        s.src=GAS+'?action=chunk&cb='+cb+'&id='+id+'&i='+i+'&last='+(i===chunks.length-1?'1':'0')+'&data='+encodeURIComponent(chunks[i]);
+        document.head.appendChild(s);
         setTimeout(resolve,5000);
       });
-    } else {
-      // Chunks — envia em partes
-      const id='ch_'+Date.now();
-      const chunks=[];
-      for(let i=0;i<payload.length;i+=CHUNK) chunks.push(payload.slice(i,i+CHUNK));
-      for(let i=0;i<chunks.length;i++){
-        await new Promise(resolve=>{
-          const script=document.createElement('script');
-          const cb='_sset_'+Date.now()+'_'+i;
-          window[cb]=()=>{delete window[cb];script.remove();resolve();};
-          script.onerror=()=>{delete window[cb];script.remove();resolve();};
-          const last=i===chunks.length-1?'1':'0';
-          script.src=GAS+'?action=chunk&cb='+cb+'&id='+id+'&i='+i+'&last='+last+'&data='+encodeURIComponent(chunks[i]);
-          document.head.appendChild(script);
-          setTimeout(resolve,5000);
-        });
-      }
     }
-    console.log('sSet enviado:',sheet,values.length,'linhas');
+    console.log('sSet OK:',sheet,values.length,'linhas');
   }catch(e){console.error('sSet erro',e);}
 }
 
@@ -1009,7 +994,8 @@ function calcAlertMap(){
 function buildAll(){
   // Adicionar grupos novos sem sobrescrever os que ja tem configuracao
   Object.entries(CEDS).forEach(([cpf,c])=>{
-    if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:'',isento:false};
+    if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:'',isento:false,noAto:false};
+    else if(c.grupo&&PRAZOS_GRUPO[c.grupo]&&PRAZOS_GRUPO[c.grupo].noAto===undefined)PRAZOS_GRUPO[c.grupo].noAto=false;
   });
   _alertMap=calcAlertMap();
   _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
@@ -1881,7 +1867,7 @@ function renderPrazosRows(canEdit){
       <input type="number" min="0" value="${pr.pedido}" placeholder="Ped." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
       <input type="number" min="0" value="${pr.entrega}" placeholder="Ent." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
       <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      ${canEdit?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
+      ${(currentUser&&currentUser.perfil==='admin')?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
     </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado</div>';
 }
 
@@ -1903,18 +1889,19 @@ function addRegraRow(){const k='manual_'+Date.now();REGRAS_CED[k]={nome:'Cedente
 
 async function saveConfig(){
   DEFAULT_RULES={min:parseFloat(document.getElementById('dr-min').value)||0,cedPct:parseFloat(document.getElementById('dr-ced-pct').value)||20,cedVal:parseFloat(document.getElementById('dr-ced-val').value)||100000,sacPct:parseFloat(document.getElementById('dr-sac-pct').value)||20,sacVal:parseFloat(document.getElementById('dr-sac-val').value)||100000,dias:parseInt(document.getElementById('dr-dias').value)||7};
-  const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS','ISENTO']];
+  const ok=document.getElementById('cfg-ok');
+  ok.style.display='inline';ok.textContent='⏳ Salvando...';ok.style.color='var(--amber)';
+  const pRows=[['GRUPO','PEDIDO_DIAS','ENTREGA_DIAS','ISENTO','NO_ATO']];
   Object.entries(PRAZOS_GRUPO).forEach(([g,p])=>pRows.push([g,p.pedido||'',p.entrega||'',p.isento?'SIM':'',p.noAto?'SIM':'']));
-  await sSet('Prazo!A1',pRows); // A:D inclui ISENTO
-  const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],
-    ['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
+  await sSet('Prazo!A1',pRows);
+  const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
   Object.entries(REGRAS_CED).forEach(([cpf,r])=>rRows.push([cpf,r.nome||'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
   await sSet('Regras!A1',rRows);
-  const ok=document.getElementById('cfg-ok');ok.style.display='inline';setTimeout(()=>ok.style.display='none',2500);
+  ok.textContent='✓ Salvo!';ok.style.color='var(--green)';
+  setTimeout(()=>ok.style.display='none',3000);
   if(TITS_ELEG.length>0)buildAll();
 }
 
-// ── USUÁRIOS ──
 function renderUsuariosPage(){
   if(currentUser.perfil!=='admin'){document.getElementById('usuarios-restricted').style.display='flex';document.getElementById('usuarios-content').style.display='none';return;}
   document.getElementById('usuarios-restricted').style.display='none';
