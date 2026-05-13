@@ -598,7 +598,7 @@ async function sSet(range,values){
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
     const payload=JSON.stringify({sheet,rows:values});
     // Enviar em chunks de 3000 chars
-    const CHUNK=500;
+    const CHUNK=2000;
     const id='s'+Date.now();
     const chunks=[];
     for(let i=0;i<payload.length;i+=CHUNK)chunks.push(payload.slice(i,i+CHUNK));
@@ -701,9 +701,26 @@ function enterApp(){
 function applyPerms(){
   const p=currentUser.perfil;
   const isConsulta=p==='consulta';
+  const isAdmin=p==='admin';
+  const isSuperv=p==='supervisora';
+  const podeUpload=isAdmin||isSuperv;
   document.getElementById('nav-config').style.display=(p==='operadora'||isConsulta)?'none':'flex';
-  document.getElementById('nav-usuarios').style.display=p==='admin'?'flex':'none';
+  document.getElementById('nav-usuarios').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-cfg-sec').style.display=(p==='operadora'||isConsulta)?'none':'block';
+  // Upload de titulos so para admin e supervisora
+  const cardTit=document.getElementById('uc-tit2');
+  if(cardTit){
+    cardTit.style.cursor=podeUpload?'pointer':'default';
+    cardTit.style.opacity=podeUpload?'1':'0.6';
+    cardTit.onclick=podeUpload?()=>document.getElementById('fi-tit').click():null;
+  }
+  // Upload de cedentes so para admin
+  const cardCed=document.getElementById('uc-ced2');
+  if(cardCed){
+    cardCed.style.cursor=isAdmin?'pointer':'default';
+    cardCed.style.opacity=isAdmin?'1':'0.6';
+    cardCed.onclick=isAdmin?()=>document.getElementById('fi-ced').click():null;
+  }
   // Esconder botões de registro para consulta
   const btnRegistrar=document.querySelector('[onclick="openNovoContato()"]');
   const btnLembrete=document.querySelector('[onclick="openNovoLembrete()"]');
