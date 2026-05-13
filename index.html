@@ -566,6 +566,7 @@ const IGNORAR_TIPOS=['ADC','CTR','DES','OUT'];
 const IGNORAR_CR=['BG'];
 
 let currentUser=null,USERS=[],TITS=[],TITS_ELEG=[],CEDS={},PRAZOS_GRUPO={},REGRAS_CED={},REGRAS_GRP={};
+let _titulosCarregadosLocal=false;
 let OBSERVACOES={},HISTORICO_DIARIO=[];
 let DEFAULT_RULES={min:0,cedPct:20,cedVal:100000,sacPct:20,sacVal:100000,dias:7};
 let pinBuffer='',calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
@@ -815,10 +816,10 @@ function loadFile(inp,tipo){
         TITS=raw;
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
+        _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
         // Não salva no Sheets automaticamente — arquivo grande trava o browser
-        // O Sheets continua sendo a fonte de dados ao entrar no sistema
       }
     }catch(err){
       console.error('loadFile erro:',err);
@@ -2139,6 +2140,7 @@ async function salvarTitulosSheets(rows, usuario){
 }
 
 async function loadTitulosSheets(){
+  if(_titulosCarregadosLocal)return true; // já carregado via upload, não sobrescrever
   const el=document.getElementById('ul-tit2');
   const card=document.getElementById('uc-tit2');
   try{
@@ -2249,40 +2251,7 @@ function renderContatos(filterDate=null){
   }).join(''):'<div class="empty" style="padding:1rem;font-size:12px">Nenhum contato registrado</div>';
 }
 
-async function loadTitulosSheets(){
-  const el=document.getElementById('ul-tit2');
-  const card=document.getElementById('uc-tit2');
-  try{
-    if(el)el.textContent='Carregando...';
-    const url=`${BASE}/values/${encodeURIComponent('TitulosAbertoAR!A:AE')}?key=${API_KEY}`;
-    const resp=await fetch(url);
-    if(!resp.ok){if(el)el.textContent='Carregar .xlsx';return false;}
-    const json=await resp.json();
-    if(json.error||!json.values||json.values.length<2){
-      if(el)el.textContent='Carregar .xlsx';return false;
-    }
-    const headers=json.values[0];
-    const raw=json.values.slice(1).map(r=>{
-      const obj={};headers.forEach((h,i)=>obj[h]=r[i]||'');return obj;
-    });
-    TITS=raw;TITS_ELEG=filtrarEleg(raw);
-    if(card)card.classList.add('done');
-    let subtext=TITS_ELEG.length+' elegiveis';
-    try{
-      const metaResp=await fetch(`${BASE}/values/TitulosAbertoAR_Meta!A1:C1?key=${API_KEY}`);
-      const metaJson=await metaResp.json();
-      if(metaJson.values&&metaJson.values[0]&&metaJson.values[0][0]){
-        const d=new Date(metaJson.values[0][1]);
-        subtext+=` · ${metaJson.values[0][0]} ${d.toLocaleDateString('pt-BR')}`;
-      }
-    }catch(e){}
-    if(el){el.textContent=subtext;el.style.color='var(--green)';}
-    // buildAll chamado pelo enterApp após loadConfig
-    return true;
-  }catch(e){
-    if(el)el.textContent='Carregar .xlsx';return false;
-  }
-}
+// loadTitulosSheets duplicata removida
 
 // salvarTitulosSheets definida acima
 
