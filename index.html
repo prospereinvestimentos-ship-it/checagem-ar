@@ -1459,7 +1459,11 @@ function renderAlertas(){
     return Object.entries(porGrp).sort((a,b)=>getMaxDias(b[1])-getMaxDias(a[1])).map(([grp,items])=>{
       const uid='alrt_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
       const totalVal=items.reduce((s,{r})=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
-      const notasHtml=items.map(({r,a})=>{
+      const notasHtml=[...items].sort((x,y)=>{
+        const dX=diasD(x.r['DATA EMISSAO']||x.r['DATA EMISSÃO']||gc(x.r,10))||0;
+        const dY=diasD(y.r['DATA EMISSAO']||y.r['DATA EMISSÃO']||gc(y.r,10))||0;
+        return dY-dX;
+      }).map(({r,a})=>{
         const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
         const doc=r['DOCUMENTO']||gc(r,0)||'—';
         const dias=diasD(r['DATA EMISSAO']||gc(r,10));
