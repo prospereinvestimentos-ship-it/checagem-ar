@@ -1924,6 +1924,47 @@ async function saveConfig(){
   if(TITS_ELEG.length>0)buildAll();
 }
 
+function renderCfgPage(){
+  const p=currentUser.perfil;
+  if(p==='operadora'||p==='consulta'){document.getElementById('cfg-restricted').style.display='flex';document.getElementById('cfg-content').style.display='none';return;}
+  document.getElementById('cfg-restricted').style.display='none';
+  document.getElementById('cfg-content').style.display='block';
+  const canEdit=p==='admin'||p==='supervisora';
+  renderPrazosRows(canEdit);renderRegrasRows(canEdit);
+  document.getElementById('dr-min').value=DEFAULT_RULES.min;
+  document.getElementById('dr-ced-pct').value=DEFAULT_RULES.cedPct;
+  document.getElementById('dr-ced-val').value=DEFAULT_RULES.cedVal;
+  document.getElementById('dr-sac-pct').value=DEFAULT_RULES.sacPct;
+  document.getElementById('dr-sac-val').value=DEFAULT_RULES.sacVal;
+  document.getElementById('dr-dias').value=DEFAULT_RULES.dias;
+}
+
+function renderPrazosRows(canEdit){
+  const grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+  // Garantir que todos os grupos existem
+  grupos.forEach(g=>{if(!PRAZOS_GRUPO[g])PRAZOS_GRUPO[g]={pedido:'',entrega:'',isento:false,noAto:false};});
+  const isAdmin=currentUser&&currentUser.perfil==='admin';
+  document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
+    <div class="cfg-row" style="grid-template-columns:60px 60px 1fr 80px 80px 60px 36px;align-items:center">
+      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text2)">Isento</span>
+        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" style="width:16px;height:16px;cursor:pointer">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
+        <span style="font-size:9px;color:var(--text2)">No ato</span>
+        <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" style="width:16px;height:16px;cursor:pointer">
+      </div>
+      <input type="text" readonly value="${grp}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" value="${pr.pedido||''}" placeholder="Ped." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" value="${pr.entrega||''}" placeholder="Ent." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      ${isAdmin?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(${canEdit})">✕</button>`:'<span></span>'}
+    </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado</div>';
+}
+
+function updTot(inp,grp){const el=document.getElementById('tot-'+grp.replace(/\s/g,'_'));if(el)el.value=calcTot(PRAZOS_GRUPO[grp]);}
+function addPrazoRow(){const k='Novo grupo '+Date.now();PRAZOS_GRUPO[k]={pedido:'',entrega:'',isento:false,noAto:false};renderPrazosRows(true);}
+
 function renderUsuariosPage(){
   if(currentUser.perfil!=='admin'){document.getElementById('usuarios-restricted').style.display='flex';document.getElementById('usuarios-content').style.display='none';return;}
   document.getElementById('usuarios-restricted').style.display='none';
