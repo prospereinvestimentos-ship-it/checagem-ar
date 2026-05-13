@@ -1877,15 +1877,29 @@ async function deleteObs(key,idx){
 // ── CONFIG ──
 async function loadConfig(){
   try{
-    const pr=await sGet('Prazo!A:D');
+    // Retry até 3x para Prazo
+    let pr=[];
+    for(let t=0;t<3;t++){
+      pr=await sGet('Prazo!A:E');
+      if(pr&&pr.length>1)break;
+      if(t<2)await new Promise(r=>setTimeout(r,1500));
+    }
     PRAZOS_GRUPO={};
-    pr.slice(1).forEach(r=>{if(r[0])PRAZOS_GRUPO[r[0]]={pedido:r[1]||'',entrega:r[2]||'',isento:(r[3]||'').toUpperCase()==='SIM'};});
-    const rg=await sGet('Regras!A:F');
+    pr.slice(1).forEach(r=>{
+      if(r[0])PRAZOS_GRUPO[r[0]]={
+        pedido:r[1]||'',entrega:r[2]||'',
+        isento:(r[3]||'').toUpperCase()==='SIM',
+        noAto:(r[4]||'').toUpperCase()==='SIM'
+      };
+    });
+    const rg=await sGet('Regras!A:H');
     REGRAS_CED={};REGRAS_GRP={};
     rg.slice(1).forEach(r=>{
       if(!r[0])return;
-      if(r[0]==='DEFAULT'){DEFAULT_RULES={min:parseFloat(r[1])||0,cedPct:parseFloat(r[2])||20,cedVal:parseFloat(r[3])||100000,sacPct:parseFloat(r[4])||20,sacVal:parseFloat(r[5])||100000,dias:7};return;}
-      // Se começa com letra é grupo, senão é CPF
+      if(r[0]==='DEFAULT'){
+        DEFAULT_RULES={min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
+        return;
+      }
       if(/^[A-Za-z]/.test(r[0])){
         REGRAS_GRP[r[0]]={min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
       } else {
@@ -1893,73 +1907,7 @@ async function loadConfig(){
         REGRAS_CED[cpf]={nome:r[1]||'',min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
       }
     });
-  }catch(e){}
-}
-
-function renderCfgPage(){
-  const p=currentUser.perfil;
-  if(p==='operadora'){document.getElementById('cfg-restricted').style.display='flex';document.getElementById('cfg-content').style.display='none';return;}
-  document.getElementById('cfg-restricted').style.display='none';
-  document.getElementById('cfg-content').style.display='block';
-  const canEdit=p==='admin'||p==='supervisora';
-  renderPrazosRows(canEdit);renderRegrasRows(canEdit);
-  document.getElementById('dr-min').value=DEFAULT_RULES.min;
-  document.getElementById('dr-ced-pct').value=DEFAULT_RULES.cedPct;
-  document.getElementById('dr-ced-val').value=DEFAULT_RULES.cedVal;
-  document.getElementById('dr-sac-pct').value=DEFAULT_RULES.sacPct;
-  document.getElementById('dr-sac-val').value=DEFAULT_RULES.sacVal;
-  document.getElementById('dr-dias').value=DEFAULT_RULES.dias;
-}
-
-function renderPrazosRows(canEdit){
-  document.getElementById('cfg-prazos-rows').innerHTML=Object.entries(PRAZOS_GRUPO).map(([grp,pr])=>`
-    <div class="cfg-row" style="grid-template-columns:60px 60px 1fr 80px 80px 60px 36px;align-items:center">
-      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
-        <span style="font-size:9px;color:var(--text2)">Isento</span>
-        <input type="checkbox" ${pr.isento?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].isento=this.checked" style="width:16px;height:16px;cursor:pointer">
-      </div>
-      <div style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px">
-        <span style="font-size:9px;color:var(--text2)">No ato</span>
-        <input type="checkbox" ${pr.noAto?'checked':''} ${!canEdit?'disabled':''} onchange="PRAZOS_GRUPO['${grp}'].noAto=this.checked" style="width:16px;height:16px;cursor:pointer">
-      </div>
-      <input type="text" readonly value="${grp}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="number" min="0" value="${pr.pedido}" placeholder="Ped." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].pedido=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="number" min="0" value="${pr.entrega}" placeholder="Ent." ${!canEdit?'readonly':''} onchange="PRAZOS_GRUPO['${grp}'].entrega=this.value;updTot(this,'${grp}')" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="text" readonly id="tot-${grp.replace(/\s/g,'_')}" value="${calcTot(pr)}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      ${(currentUser&&currentUser.perfil==='admin')?`<button class="btn-del" onclick="delete PRAZOS_GRUPO['${grp}'];renderPrazosRows(true)">✕</button>`:'<span></span>'}
-    </div>`).join('')||'<div class="empty">Nenhum grupo cadastrado</div>';
-}
-
-function updTot(inp,grp){const el=document.getElementById('tot-'+grp.replace(/\s/g,'_'));if(el)el.value=calcTot(PRAZOS_GRUPO[grp]);}
-function addPrazoRow(){const k='Novo grupo '+Date.now();PRAZOS_GRUPO[k]={pedido:'',entrega:''};renderPrazosRows(true);}
-
-function renderRegrasRows(canEdit){
-  const grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
-  const grpOptions=grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
-  document.getElementById('cfg-regras-rows').innerHTML=Object.entries(REGRAS_GRP).map(([grp,r])=>`
-    <div class="cfg-row" style="grid-template-columns:1fr 100px 70px 70px 70px 36px;margin-bottom:10px">
-      ${canEdit
-        ? `<select style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%;font-family:inherit"
-             onchange="const old='${grp}';const nv=this.value;if(nv&&nv!==old){REGRAS_GRP[nv]=REGRAS_GRP[old];delete REGRAS_GRP[old];renderRegrasRows(true);}">
-             <option value="${grp}" selected>${grp}</option>
-             ${grpOptions}
-           </select>`
-        : `<input type="text" readonly value="${grp}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">`
-      }
-      <input type="number" min="0" value="${r.min||0}" placeholder="R$ mín" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].min=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="number" min="0" max="100" value="${r.cedPct||20}" placeholder="%" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].cedPct=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="number" min="0" max="100" value="${r.sacPct||20}" placeholder="%" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].sacPct=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      <input type="number" min="1" value="${r.dias||7}" placeholder="dias" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].dias=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
-      ${canEdit?`<button class="btn-del" onclick="delete REGRAS_GRP['${grp}'];renderRegrasRows(true)">✕</button>`:'<span></span>'}
-    </div>`).join('')||'<div class="empty">Nenhuma exceção — todos usam as regras padrão</div>';
-}
-function addRegraRow(){
-  const grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
-  const jatem=new Set(Object.keys(REGRAS_GRP));
-  const disp=grupos.find(g=>!jatem.has(g));
-  const grp=disp||'Novo grupo '+Date.now();
-  REGRAS_GRP[grp]={min:0,cedPct:20,cedVal:100000,sacPct:20,sacVal:100000,dias:7};
-  renderRegrasRows(true);
+  }catch(e){console.error('loadConfig erro:',e);}
 }
 
 async function saveConfig(){
