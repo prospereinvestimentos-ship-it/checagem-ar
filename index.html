@@ -1315,7 +1315,7 @@ function renderControladores(){
       if(vencido){pendByGrupo[grupo].vencido=true;pendByGrupo[grupo].notasVenc++;}
       if(temLimite)pendByGrupo[grupo].temLimite=true;
       // Só adiciona a nota na lista se for vencida, nova com pendência, ou com limite
-      if(vencido||novo||temLimite)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,novo});
+      if(vencido)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,novo});
     });
     // Só exibir grupos que têm pelo menos 1 nota vencida OU cedente novo OU limite
     const prioridades=Object.values(pendByGrupo)
