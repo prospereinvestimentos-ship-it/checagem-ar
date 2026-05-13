@@ -794,24 +794,41 @@ let _NOTAS_UNICAS={};
 
 // ── CARREGAR ARQUIVOS ──
 function loadFile(inp,tipo){
+  const p=currentUser?.perfil;
+  if(tipo==='tit'&&p!=='admin'&&p!=='supervisora'){alert('Sem permissão para carregar títulos.');inp.value='';return;}
+  if(tipo==='ced'&&p!=='admin'){alert('Sem permissão para carregar cedentes.');inp.value='';return;}
   const file=inp.files[0];if(!file)return;
+  const elLabel=tipo==='tit'?document.getElementById('ul-tit2'):document.getElementById('ul-ced2');
+  if(elLabel)elLabel.textContent='Lendo arquivo...';
   const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
-    const ws=wb.Sheets[wb.SheetNames[0]];
-    const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'yyyy-mm-dd'});
-    if(tipo==='ced'){
-      parseCeds(raw);
-      document.getElementById('uc-ced2').classList.add('done');
-      document.getElementById('ul-ced2').textContent=Object.keys(CEDS).length+' cedentes';
-    } else {
-      TITS=raw;
-      TITS_ELEG=filtrarEleg(raw);
-      document.getElementById('uc-tit2').classList.add('done');
-      document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
-      // Nota: TitulosAbertoAR deve ser atualizado diretamente no Google Sheets
+  reader.onload=async e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false,dateNF:'yyyy-mm-dd'});
+      if(tipo==='ced'){
+        parseCeds(raw);
+        document.getElementById('uc-ced2').classList.add('done');
+        document.getElementById('ul-ced2').textContent=Object.keys(CEDS).length+' cedentes ✓';
+        buildAll();
+      } else {
+        TITS=raw;
+        TITS_ELEG=filtrarEleg(raw);
+        document.getElementById('uc-tit2').classList.add('done');
+        if(elLabel)elLabel.textContent='Salvando no Sheets...';
+        await salvarTitulosSheets(raw, currentUser.nome);
+        if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
+        buildAll();
+      }
+    }catch(err){
+      console.error('loadFile erro:',err);
+      if(elLabel){elLabel.textContent='Erro ao carregar';elLabel.style.color='var(--red)';}
     }
-    // buildAll chamado pelo enterApp
+    inp.value='';
+  };
+  reader.onerror=()=>{
+    if(elLabel){elLabel.textContent='Erro na leitura';elLabel.style.color='var(--red)';}
+    inp.value='';
   };
   reader.readAsArrayBuffer(file);
 }
@@ -2267,21 +2284,7 @@ async function loadTitulosSheets(){
   }
 }
 
-async function salvarTitulosSheets(rows,usuario){
-  if(!rows||!rows.length)return;
-  const el=document.getElementById('ul-tit2');
-  if(el)el.textContent='Salvando no Sheets...';
-  try{
-    const keys=Object.keys(rows[0]);
-    const data=[keys,...rows.map(r=>keys.map(k=>r[k]!==undefined?String(r[k]):''))];
-    const meta=[[usuario,new Date().toISOString(),rows.length+'']];
-    await sSet('TitulosAbertoAR!A1',data);
-    await sSet('TitulosAbertoAR_Meta!A1',meta);
-    if(el){el.textContent=TITS_ELEG.length+' elegiveis · salvo ✓';el.style.color='var(--green)';}
-  }catch(e){
-    if(el)el.textContent=TITS_ELEG.length+' elegiveis';
-  }
-}
+// salvarTitulosSheets definida acima
 
 function selectCalDay(dateStr){
   _calSelected=dateStr;
