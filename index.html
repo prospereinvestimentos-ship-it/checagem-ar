@@ -815,10 +815,10 @@ function loadFile(inp,tipo){
         TITS=raw;
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
-        if(elLabel)elLabel.textContent='Salvando no Sheets...';
-        await salvarTitulosSheets(raw, currentUser.nome);
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
+        // Não salva no Sheets automaticamente — arquivo grande trava o browser
+        // O Sheets continua sendo a fonte de dados ao entrar no sistema
       }
     }catch(err){
       console.error('loadFile erro:',err);
