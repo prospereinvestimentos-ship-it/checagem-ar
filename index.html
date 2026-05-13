@@ -1955,7 +1955,7 @@ async function saveConfig(){
   await sSet('Prazo!A1',pRows);
   const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
   Object.entries(REGRAS_CED).forEach(([cpf,r])=>rRows.push([cpf,r.nome||'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
-  Object.entries(REGRAS_GRP).forEach(([grp,r])=>rRows.push([grp,'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
+  Object.entries(REGRAS_GRP).forEach(([grp,r])=>{if(!r)return;rRows.push([grp,'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]);});
   await sSet('Regras!A1',rRows);
   ok.textContent='✓ Salvo!';ok.style.color='var(--green)';
   setTimeout(()=>ok.style.display='none',3000);
