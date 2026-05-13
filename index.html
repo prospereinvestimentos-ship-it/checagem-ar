@@ -1455,11 +1455,8 @@ function renderAlertas(){
       porGrp[grp].push({r,a});
     });
     // Ordenar por max dias (mais antigo primeiro)
-    return Object.entries(porGrp).sort((a,b)=>{
-      const maxA=Math.max(...a[1].map(({r})=>diasD(r['DATA EMISSAO']||gc(r,10))||0));
-      const maxB=Math.max(...b[1].map(({r})=>diasD(r['DATA EMISSAO']||gc(r,10))||0));
-      return maxB-maxA;
-    }).map(([grp,items])=>{
+    const getMaxDias=(items)=>Math.max(...items.map(({r})=>diasD(r['DATA EMISSÃO']||r['DATA EMISSAO']||gc(r,10))||0));
+    return Object.entries(porGrp).sort((a,b)=>getMaxDias(b[1])-getMaxDias(a[1])).map(([grp,items])=>{
       const uid='alrt_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
       const totalVal=items.reduce((s,{r})=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
       const notasHtml=items.map(({r,a})=>{
@@ -2342,4 +2339,3 @@ checkIP().then(ok=>{ if(ok) loadUsers(); });
 </script>
 </body>
 </html>
-v
