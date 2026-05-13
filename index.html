@@ -598,7 +598,7 @@ async function sSet(range,values){
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
     const payload=JSON.stringify({sheet,rows:values});
     // Enviar em chunks de 3000 chars
-    const CHUNK=2000;
+    const CHUNK=8000;
     const id='s'+Date.now();
     const chunks=[];
     for(let i=0;i<payload.length;i+=CHUNK)chunks.push(payload.slice(i,i+CHUNK));
