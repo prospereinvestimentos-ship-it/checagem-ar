@@ -1427,7 +1427,8 @@ function renderAlertas(){
     const hist=String(r['HISTORICO']||gc(r,24)).trim().toUpperCase();
     const a=_alertMap[i];
     if(hist==='REC'){
-      recViol.push({r,a:{alertas:['Recompra'],nivel:'bloqueio'}});
+      const motivo=String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||r['MOTIVO RECOMENDAÇÃO']||gc(r,29)||'').trim()||'Sem motivo';
+      recViol.push({r,a:{alertas:[motivo],nivel:'bloqueio'},motivo});
     } else {
       if(a?.nivel==='bloqueio')prazoViol.push({r,a});
       if(a?.nivelLimite==='bloqueio')limiteViol.push({r,a:{alertas:a.alertasLimite,nivel:'bloqueio'}});
@@ -1459,11 +1460,7 @@ function renderAlertas(){
     return Object.entries(porGrp).sort((a,b)=>getMaxDias(b[1])-getMaxDias(a[1])).map(([grp,items])=>{
       const uid='alrt_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
       const totalVal=items.reduce((s,{r})=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
-      const notasHtml=[...items].sort((x,y)=>{
-        const dX=diasD(x.r['DATA EMISSAO']||x.r['DATA EMISSÃO']||gc(x.r,10))||0;
-        const dY=diasD(y.r['DATA EMISSAO']||y.r['DATA EMISSÃO']||gc(y.r,10))||0;
-        return dY-dX;
-      }).map(({r,a})=>{
+      const notasHtml=items.map(({r,a})=>{
         const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
         const doc=r['DOCUMENTO']||gc(r,0)||'—';
         const dias=diasD(r['DATA EMISSAO']||gc(r,10));
@@ -1554,7 +1551,7 @@ function filtrarAlertas(){
   const lFiltrado=ctrlFiltro?limiteViol.filter(({r})=>{const ct=String(getCed(r).controlador||'Sem controlador').trim();return ct===ctrlFiltro;}):limiteViol;
   if(cp)cp.innerHTML=buildColuna(pFiltrado,'');
   if(cl)cl.innerHTML=buildColuna(lFiltrado,'');
-  if(cr)cr.innerHTML=buildColuna(rFiltrado,'');
+  if(cr)cr.innerHTML=buildColunaRecompra(rFiltrado);
   const pc=document.getElementById('alrt-prazo-cnt');
   const lc=document.getElementById('alrt-limite-cnt');
   const rc=document.getElementById('alrt-rec-cnt');
@@ -1563,6 +1560,49 @@ function filtrarAlertas(){
   if(lc)lc.textContent=lFiltrado.length;
   if(rc)rc.textContent=rFiltrado.length;
   if(ac)ac.textContent=pFiltrado.length+' prazo · '+lFiltrado.length+' limite · '+rFiltrado.length+' recompra';
+}
+
+// ── RECOMPRA POR MOTIVO ──
+function buildColunaRecompra(viols){
+  if(!viols.length)return'<div class="empty" style="padding:1rem;color:var(--green)">✓ Nenhuma</div>';
+  // Agrupar por motivo
+  const porMotivo={};
+  viols.forEach(({r,motivo})=>{
+    const m=motivo||String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||r['MOTIVO RECOMENDAÇÃO']||gc(r,29)||'').trim()||'Sem motivo';
+    if(!porMotivo[m])porMotivo[m]=[];
+    porMotivo[m].push(r);
+  });
+  const MOTIVO_CORES={'Cheque Devolvido':'#f05252','Inadimplencia Sacado':'#f05252','Falencia RJ Sacado':'#f05252','Fraude Comprovada Cedente':'#f05252','Impedimento Legal Ou Judicial':'#f05252','Devolução de Mercadoria':'#fb923c','Disputa Comercial Ou Recusa Sacado':'#fb923c','Erro Documental Ou Dados Cedente':'#fbbf24','Erro Operacional Interno':'#fbbf24','Erro Processual Cedente':'#fbbf24','NF Cancelada Ou Invalida':'#fbbf24','Mercadoria não entregue':'#fb923c','Lastro Comercial Nao Verificavel':'#f5a623','Pagamento Direto ao Cedente':'#5b8af5','PRORROGAÇÃO':'#5b8af5','Substituicao Titulo Cedente':'#5b8af5','Solicitado pelo cliente':'#9294a0','Titulos em atraso':'#fb923c','CCP Gerado':'#9294a0','Outros Em Analise':'#9294a0'};
+  return Object.entries(porMotivo).sort((a,b)=>b[1].length-a[1].length).map(([motivo,rows])=>{
+    const uid='rec_'+motivo.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Math.random().toString(36).substr(2,4);
+    const cor=MOTIVO_CORES[motivo]||'#9294a0';
+    const totalVal=rows.reduce((s,r)=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
+    const itensHtml=[...rows].sort((a,b)=>{
+      const dA=diasD(a['DATA EMISSAO']||a['DATA EMISSÃO']||gc(a,10))||0;
+      const dB=diasD(b['DATA EMISSAO']||b['DATA EMISSÃO']||gc(b,10))||0;
+      return dB-dA;
+    }).map(r=>{
+      const grupo=getCed(r).grupo||'—';
+      const doc=r['DOCUMENTO']||gc(r,0)||'—';
+      const dias=diasD(r['DATA EMISSAO']||gc(r,10));
+      return`<div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center">
+        <span style="color:var(--text2);font-family:monospace;flex-shrink:0">${doc}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${grupo}</span>
+        ${dias!==null?`<span style="color:var(--amber);flex-shrink:0">${dias}d</span>`:''}
+      </div>`;
+    }).join('');
+    return`<div style="margin-bottom:8px;background:var(--bg3);border-radius:var(--radius-sm);overflow:hidden;border-left:3px solid ${cor}">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer" onclick="toggleGrp('${uid}')">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${motivo}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${rows.length} nota${rows.length>1?'s':''} · ${fmtVal(totalVal)}</div>
+        </div>
+        <span class="badge br" style="background:${cor}22;color:${cor};border:none;flex-shrink:0">${rows.length}</span>
+        <span id="${uid}_ico" style="font-size:10px;color:var(--text3);flex-shrink:0">▶</span>
+      </div>
+      <div id="${uid}" style="display:none;padding:0 10px 8px">${itensHtml}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── HISTÓRICO ──
