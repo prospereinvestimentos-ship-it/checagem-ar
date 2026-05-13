@@ -808,10 +808,7 @@ function loadFile(inp,tipo){
       TITS_ELEG=filtrarEleg(raw);
       document.getElementById('uc-tit2').classList.add('done');
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
-      // Admin e Supervisora podem salvar no Sheets
-      if(currentUser&&(currentUser.perfil==='admin'||currentUser.perfil==='supervisora')){
-        salvarTitulosSheets(raw,currentUser.nome);
-      }
+      // Nota: TitulosAbertoAR deve ser atualizado diretamente no Google Sheets
     }
     if(TITS_ELEG.length>0) buildAll();
   };
