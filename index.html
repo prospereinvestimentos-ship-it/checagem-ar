@@ -519,8 +519,8 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
             <div class="def-rule-row"><span>Máx. dias com confirmação pendente</span><div class="def-rule-input"><input type="number" id="dr-dias" value="7" min="1"><span>dias</span></div></div>
           </div>
           <div class="section"><div class="section-hdr"><div class="section-title">Exceções por cedente</div></div><div class="section-body">
-            <div class="cfg-hdr" style="grid-template-columns:1fr 90px 90px 90px 90px 36px">
-              <span>Cedente</span><span>Val. mín. (R$)</span><span>% ced.</span><span>% sac.</span><span>Dias máx.</span><span></span>
+            <div class="cfg-hdr" style="grid-template-columns:1fr 100px 70px 70px 70px 36px">
+              <span>Grupo econômico</span><span>Val. mín. (R$)</span><span>% ced.</span><span>% sac.</span><span>Dias máx.</span><span></span>
             </div>
             <div id="cfg-regras-rows"></div>
             <button class="btn-add" onclick="addRegraRow()">+ Adicionar exceção</button>
@@ -565,7 +565,7 @@ const BASE=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 const IGNORAR_TIPOS=['ADC','CTR','DES','OUT'];
 const IGNORAR_CR=['BG'];
 
-let currentUser=null,USERS=[],TITS=[],TITS_ELEG=[],CEDS={},PRAZOS_GRUPO={},REGRAS_CED={};
+let currentUser=null,USERS=[],TITS=[],TITS_ELEG=[],CEDS={},PRAZOS_GRUPO={},REGRAS_CED={},REGRAS_GRP={};
 let OBSERVACOES={},HISTORICO_DIARIO=[];
 let DEFAULT_RULES={min:0,cedPct:20,cedVal:100000,sacPct:20,sacVal:100000,dias:7};
 let pinBuffer='',calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
@@ -935,7 +935,14 @@ function parseCedsFromArray(rows){
 
 function getCed(r){return CEDS[normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))]||{operador:'—',controlador:'—',grupo:'—',nome:'',dataCad:'',bloqueado:false};}
 function getPrazoGrupo(grupo){return PRAZOS_GRUPO[grupo]||null;}
-function getRegra(cpf){return REGRAS_CED[normCPF(cpf)]||null;}
+function getRegra(cpf){
+  const r=REGRAS_CED[normCPF(cpf)];
+  if(r)return r;
+  // Tentar por grupo
+  const c=CEDS[normCPF(cpf)];
+  if(c&&c.grupo&&REGRAS_GRP[c.grupo])return REGRAS_GRP[c.grupo];
+  return null;
+}
 
 function isGrupoIsento(grupo){
   const pr=PRAZOS_GRUPO[grupo];
@@ -1857,12 +1864,17 @@ async function loadConfig(){
     PRAZOS_GRUPO={};
     pr.slice(1).forEach(r=>{if(r[0])PRAZOS_GRUPO[r[0]]={pedido:r[1]||'',entrega:r[2]||'',isento:(r[3]||'').toUpperCase()==='SIM'};});
     const rg=await sGet('Regras!A:F');
-    REGRAS_CED={};
+    REGRAS_CED={};REGRAS_GRP={};
     rg.slice(1).forEach(r=>{
       if(!r[0])return;
       if(r[0]==='DEFAULT'){DEFAULT_RULES={min:parseFloat(r[1])||0,cedPct:parseFloat(r[2])||20,cedVal:parseFloat(r[3])||100000,sacPct:parseFloat(r[4])||20,sacVal:parseFloat(r[5])||100000,dias:7};return;}
-      const cpf=r[0].replace(/\D/g,'');
-      REGRAS_CED[cpf]={nome:r[1]||'',min:r[2]||0,cedPct:r[3]||20,cedVal:r[4]||100000,sacPct:r[5]||20,sacVal:r[6]||100000};
+      // Se começa com letra é grupo, senão é CPF
+      if(/^[A-Za-z]/.test(r[0])){
+        REGRAS_GRP[r[0]]={min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
+      } else {
+        const cpf=r[0].replace(/\D/g,'');
+        REGRAS_CED[cpf]={nome:r[1]||'',min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
+      }
     });
   }catch(e){}
 }
@@ -1905,17 +1917,33 @@ function updTot(inp,grp){const el=document.getElementById('tot-'+grp.replace(/\s
 function addPrazoRow(){const k='Novo grupo '+Date.now();PRAZOS_GRUPO[k]={pedido:'',entrega:''};renderPrazosRows(true);}
 
 function renderRegrasRows(canEdit){
-  document.getElementById('cfg-regras-rows').innerHTML=Object.entries(REGRAS_CED).map(([cpf,r])=>`
-    <div class="cfg-row" style="grid-template-columns:1fr 90px 80px 80px 80px 36px">
-      <input type="text" readonly value="${r.nome||cpf}" title="${cpf}">
-      <input type="number" min="0" value="${r.min}" ${!canEdit?'readonly':''} onchange="REGRAS_CED['${cpf}'].min=this.value">
-      <input type="number" min="0" max="100" value="${r.cedPct}" ${!canEdit?'readonly':''} onchange="REGRAS_CED['${cpf}'].cedPct=this.value">
-      <input type="number" min="0" max="100" value="${r.sacPct}" ${!canEdit?'readonly':''} onchange="REGRAS_CED['${cpf}'].sacPct=this.value">
-      <input type="number" min="1" value="${r.dias||7}" ${!canEdit?'readonly':''} onchange="REGRAS_CED['${cpf}'].dias=this.value">
-      ${canEdit?`<button class="btn-del" onclick="delete REGRAS_CED['${cpf}'];renderRegrasRows(true)">✕</button>`:'<span></span>'}
+  const grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+  const grpOptions=grupos.map(g=>`<option value="${g}">${g}</option>`).join('');
+  document.getElementById('cfg-regras-rows').innerHTML=Object.entries(REGRAS_GRP).map(([grp,r])=>`
+    <div class="cfg-row" style="grid-template-columns:1fr 100px 70px 70px 70px 36px;margin-bottom:10px">
+      ${canEdit
+        ? `<select style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%;font-family:inherit"
+             onchange="const old='${grp}';const nv=this.value;if(nv&&nv!==old){REGRAS_GRP[nv]=REGRAS_GRP[old];delete REGRAS_GRP[old];renderRegrasRows(true);}">
+             <option value="${grp}" selected>${grp}</option>
+             ${grpOptions}
+           </select>`
+        : `<input type="text" readonly value="${grp}" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">`
+      }
+      <input type="number" min="0" value="${r.min||0}" placeholder="R$ mín" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].min=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" max="100" value="${r.cedPct||20}" placeholder="%" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].cedPct=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="0" max="100" value="${r.sacPct||20}" placeholder="%" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].sacPct=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      <input type="number" min="1" value="${r.dias||7}" placeholder="dias" ${!canEdit?'readonly':''} onchange="REGRAS_GRP['${grp}'].dias=this.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;color:var(--text);width:100%">
+      ${canEdit?`<button class="btn-del" onclick="delete REGRAS_GRP['${grp}'];renderRegrasRows(true)">✕</button>`:'<span></span>'}
     </div>`).join('')||'<div class="empty">Nenhuma exceção — todos usam as regras padrão</div>';
 }
-function addRegraRow(){const k='manual_'+Date.now();REGRAS_CED[k]={nome:'Cedente',min:0,cedPct:20,sacPct:20,dias:7};renderRegrasRows(true);}
+function addRegraRow(){
+  const grupos=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
+  const jatem=new Set(Object.keys(REGRAS_GRP));
+  const disp=grupos.find(g=>!jatem.has(g));
+  const grp=disp||'Novo grupo '+Date.now();
+  REGRAS_GRP[grp]={min:0,cedPct:20,cedVal:100000,sacPct:20,sacVal:100000,dias:7};
+  renderRegrasRows(true);
+}
 
 async function saveConfig(){
   DEFAULT_RULES={min:parseFloat(document.getElementById('dr-min').value)||0,cedPct:parseFloat(document.getElementById('dr-ced-pct').value)||20,cedVal:parseFloat(document.getElementById('dr-ced-val').value)||100000,sacPct:parseFloat(document.getElementById('dr-sac-pct').value)||20,sacVal:parseFloat(document.getElementById('dr-sac-val').value)||100000,dias:parseInt(document.getElementById('dr-dias').value)||7};
@@ -1927,6 +1955,7 @@ async function saveConfig(){
   await sSet('Prazo!A1',pRows);
   const rRows=[['CPF_CNPJ','NOME','MIN_VALOR','CED_PCT','CED_VAL','SAC_PCT','SAC_VAL','DIAS'],['DEFAULT','',DEFAULT_RULES.min,DEFAULT_RULES.cedPct,DEFAULT_RULES.cedVal,DEFAULT_RULES.sacPct,DEFAULT_RULES.sacVal,DEFAULT_RULES.dias]];
   Object.entries(REGRAS_CED).forEach(([cpf,r])=>rRows.push([cpf,r.nome||'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
+  Object.entries(REGRAS_GRP).forEach(([grp,r])=>rRows.push([grp,'',r.min||0,r.cedPct||20,r.cedVal||100000,r.sacPct||20,r.sacVal||100000,r.dias||7]));
   await sSet('Regras!A1',rRows);
   ok.textContent='✓ Salvo!';ok.style.color='var(--green)';
   setTimeout(()=>ok.style.display='none',3000);
