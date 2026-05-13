@@ -692,9 +692,10 @@ function enterApp(){
   document.getElementById('sb-role').textContent=ROLE_LABELS[currentUser.perfil];
   initTheme();
   applyPerms();
-  Promise.all([loadCedentesAuto()]).then(()=>{
-    loadConfig();
-    loadTitulosSheets();
+  Promise.all([loadCedentesAuto()]).then(async ()=>{
+    await loadConfig();
+    await loadTitulosSheets();
+    if(TITS_ELEG.length>0)buildAll();
   });
   loadObs();
 }
@@ -810,7 +811,7 @@ function loadFile(inp,tipo){
       document.getElementById('ul-tit2').textContent=TITS_ELEG.length+' elegiveis';
       // Nota: TitulosAbertoAR deve ser atualizado diretamente no Google Sheets
     }
-    if(TITS_ELEG.length>0) buildAll();
+    // buildAll chamado pelo enterApp
   };
   reader.readAsArrayBuffer(file);
 }
@@ -848,7 +849,7 @@ async function loadCedentesAuto(){
     // Marcar PROSPER como isento automaticamente
     const prospCpf=normCPF('36.213.493/0001-95');
     if(CEDS[prospCpf])PRAZOS_GRUPO[CEDS[prospCpf].grupo]=Object.assign(PRAZOS_GRUPO[CEDS[prospCpf].grupo]||{pedido:'',entrega:''},{ isento:true });
-    if(TITS_ELEG.length>0)buildAll();
+    // buildAll será chamado após loadConfig e loadTitulosSheets
   }catch(e){
     console.error('loadCedentesAuto erro:',e);
     if(el)el.textContent='Carregar manualmente';
@@ -1928,7 +1929,7 @@ async function saveConfig(){
   await sSet('Regras!A1',rRows);
   ok.textContent='✓ Salvo!';ok.style.color='var(--green)';
   setTimeout(()=>ok.style.display='none',3000);
-  if(TITS_ELEG.length>0)buildAll();
+  if(TITS_ELEG.length>0)setTimeout(buildAll,500);
 }
 
 function renderCfgPage(){
@@ -2026,7 +2027,7 @@ async function loadCedentesAuto(){
     // Marcar PROSPER como isento automaticamente
     const prospCpf=normCPF('36.213.493/0001-95');
     if(CEDS[prospCpf])PRAZOS_GRUPO[CEDS[prospCpf].grupo]=Object.assign(PRAZOS_GRUPO[CEDS[prospCpf].grupo]||{pedido:'',entrega:''},{ isento:true });
-    if(TITS_ELEG.length>0)buildAll();
+    // buildAll será chamado após loadConfig e loadTitulosSheets
   }catch(e){
     console.error('loadCedentesAuto erro:',e);
     if(el)el.textContent='Carregar manualmente';
@@ -2137,7 +2138,7 @@ async function loadTitulosSheets(){
     }
     if(el){el.textContent=subtext;el.style.color='var(--green)';}
     console.log('TitulosAbertoAR carregado do Sheets:',raw.length,'linhas');
-    if(TITS_ELEG.length>0)buildAll();
+    // buildAll será chamado pelo enterApp após loadConfig
     return true;
   }catch(e){
     console.error('loadTitulosSheets erro:',e);
@@ -2247,7 +2248,7 @@ async function loadTitulosSheets(){
       }
     }catch(e){}
     if(el){el.textContent=subtext;el.style.color='var(--green)';}
-    if(TITS_ELEG.length>0)buildAll();
+    // buildAll chamado pelo enterApp após loadConfig
     return true;
   }catch(e){
     if(el)el.textContent='Carregar .xlsx';return false;
@@ -2341,3 +2342,4 @@ checkIP().then(ok=>{ if(ok) loadUsers(); });
 </script>
 </body>
 </html>
+v
