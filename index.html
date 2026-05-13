@@ -1345,13 +1345,16 @@ function renderControladores(){
       </div>
       ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
         const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
-        const notasHtml=p.todasNotas?p.todasNotas.map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:var(--text2)">${n.dias}d</span></div>`).join(''):'';
+        const notasHtml=p.todasNotas?[...p.todasNotas].sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:${n.vencido?'#f05252':n.emAlerta?'#f5a623':'var(--text2)'}">${n.dias}d</span></div>`).join(''):'';
+        const dotCor=p.vencido?'#f05252':p.emAlerta?'#f5a623':p.novo?'#a78bfa':p.temLimite?'#fbbf24':'#5b8af5';
+        const catLabel=p.vencido?'<span style="font-size:9px;background:#f0525222;color:#f05252;padding:1px 5px;border-radius:100px;flex-shrink:0">vencido</span>':p.emAlerta?'<span style="font-size:9px;background:#f5a62322;color:#f5a623;padding:1px 5px;border-radius:100px;flex-shrink:0">alerta</span>':p.novo?'<span style="font-size:9px;background:#a78bfa22;color:#a78bfa;padding:1px 5px;border-radius:100px;flex-shrink:0">novo</span>':p.temLimite?'<span style="font-size:9px;background:#fbbf2422;color:#fbbf24;padding:1px 5px;border-radius:100px;flex-shrink:0">limite</span>':'';
+        const subInfo=(p.notasVenc?p.notasVenc+' vencida'+(p.notasVenc>1?'s':''):'')+(p.notasAlerta?(p.notasVenc?' · ':'')+p.notasAlerta+' alerta':'')+(p.notasVenc||p.notasAlerta?' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':''));
         return`<div class="priority-item" style="flex-direction:column;align-items:stretch;gap:0">
           <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0" onclick="toggleGrp('${uid}')">
-            <div class="priority-dot" style="background:${i===0?'#f05252':i===1?'#f5a623':'#5b8af5'};flex-shrink:0"></div>
+            <div class="priority-dot" style="background:${dotCor};flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.novo?'<span style=\"color:#a78bfa;font-weight:700\">★ </span>':''}<strong>${p.grupo}</strong></div>
-              <div style="font-size:10px;color:var(--text2)">${p.vencido&&p.notasVenc<p.notas?p.notasVenc+' vencida'+(p.notasVenc>1?'s':'')+' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':'')} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
+              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.grupo}</strong>${catLabel}</div>
+              <div style="font-size:10px;color:var(--text2)">${subInfo} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
             </div>
             <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
           </div>
