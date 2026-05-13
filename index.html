@@ -1306,22 +1306,26 @@ function renderControladores(){
       const novo=isNovo(cpf);
       const vencido=prazoSt(r)==='vencido';
       const temLimite=_alertMap[idx]?.nivelLimite==='bloqueio';
-      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,vencido:false,temLimite:false,todasNotas:[]};
+      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,vencido:false,temLimite:false,notasVenc:0,todasNotas:[]};
+      // Conta todas as notas do grupo para referência
       pendByGrupo[grupo].notas++;
       pendByGrupo[grupo].val+=valorNota;
       if(dias>pendByGrupo[grupo].maxDias)pendByGrupo[grupo].maxDias=dias;
       if(novo)pendByGrupo[grupo].novo=true;
-      if(vencido)pendByGrupo[grupo].vencido=true;
+      if(vencido){pendByGrupo[grupo].vencido=true;pendByGrupo[grupo].notasVenc++;}
       if(temLimite)pendByGrupo[grupo].temLimite=true;
-      pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido});
+      // Só adiciona a nota na lista se for vencida, nova com pendência, ou com limite
+      if(vencido||novo||temLimite)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,novo});
     });
-    // Ordenar: 1º vencidos, 2º novos, 3º limite de valor — dentro de cada categoria por maxDias
-    const prioridades=Object.values(pendByGrupo).sort((a,b)=>{
-      const catA=a.vencido?0:a.novo?1:a.temLimite?2:3;
-      const catB=b.vencido?0:b.novo?1:b.temLimite?2:3;
-      if(catA!==catB)return catA-catB;
-      return b.maxDias-a.maxDias;
-    }).slice(0,8);
+    // Só exibir grupos que têm pelo menos 1 nota vencida OU cedente novo OU limite
+    const prioridades=Object.values(pendByGrupo)
+      .filter(p=>p.vencido||p.novo||p.temLimite)
+      .sort((a,b)=>{
+        const catA=a.vencido?0:a.novo?1:a.temLimite?2:3;
+        const catB=b.vencido?0:b.novo?1:b.temLimite?2:3;
+        if(catA!==catB)return catA-catB;
+        return b.maxDias-a.maxDias;
+      }).slice(0,8);
     return`<div class="ctrl-card">
       <div class="ctrl-card-hdr">
         <div class="ctrl-avatar">${ctrl.substring(0,2).toUpperCase()}</div>
@@ -1341,15 +1345,13 @@ function renderControladores(){
       </div>
       ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
         const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
-        const notasHtml=p.todasNotas?[...p.todasNotas].sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:${n.vencido?'#f05252':'var(--text2)'}">${n.dias}d</span></div>`).join(''):'';
-        const catLabel=p.vencido?'<span style="font-size:9px;background:#f0525222;color:#f05252;padding:1px 5px;border-radius:100px;flex-shrink:0">vencido</span>':p.novo?'<span style="font-size:9px;background:#a78bfa22;color:#a78bfa;padding:1px 5px;border-radius:100px;flex-shrink:0">novo</span>':p.temLimite?'<span style="font-size:9px;background:#f5a62322;color:#f5a623;padding:1px 5px;border-radius:100px;flex-shrink:0">limite</span>':'';
-        const dotCor=p.vencido?'#f05252':p.novo?'#a78bfa':p.temLimite?'#f5a623':'#5b8af5';
+        const notasHtml=p.todasNotas?p.todasNotas.map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:var(--text2)">${n.dias}d</span></div>`).join(''):'';
         return`<div class="priority-item" style="flex-direction:column;align-items:stretch;gap:0">
           <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0" onclick="toggleGrp('${uid}')">
-            <div class="priority-dot" style="background:${dotCor};flex-shrink:0"></div>
+            <div class="priority-dot" style="background:${i===0?'#f05252':i===1?'#f5a623':'#5b8af5'};flex-shrink:0"></div>
             <div style="flex:1;min-width:0">
-              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.grupo}</strong>${catLabel}</div>
-              <div style="font-size:10px;color:var(--text2)">${p.notas} nota${p.notas>1?'s':''} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
+              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.novo?'<span style=\"color:#a78bfa;font-weight:700\">★ </span>':''}<strong>${p.grupo}</strong></div>
+              <div style="font-size:10px;color:var(--text2)">${p.vencido&&p.notasVenc<p.notas?p.notasVenc+' vencida'+(p.notasVenc>1?'s':'')+' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':'')} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
             </div>
             <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
           </div>
@@ -1437,8 +1439,7 @@ function renderAlertas(){
     const hist=String(r['HISTORICO']||gc(r,24)).trim().toUpperCase();
     const a=_alertMap[i];
     if(hist==='REC'){
-      const motivo=String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||r['MOTIVO RECOMENDAÇÃO']||gc(r,29)||'').trim()||'Sem motivo';
-      recViol.push({r,motivo,a:{alertas:[motivo],nivel:'bloqueio'}});
+      recViol.push({r,a:{alertas:['Recompra'],nivel:'bloqueio'}});
     } else {
       if(a?.nivel==='bloqueio')prazoViol.push({r,a});
       if(a?.nivelLimite==='bloqueio')limiteViol.push({r,a:{alertas:a.alertasLimite,nivel:'bloqueio'}});
@@ -1470,11 +1471,7 @@ function renderAlertas(){
     return Object.entries(porGrp).sort((a,b)=>getMaxDias(b[1])-getMaxDias(a[1])).map(([grp,items])=>{
       const uid='alrt_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Date.now()+'_'+Math.random().toString(36).substr(2,4);
       const totalVal=items.reduce((s,{r})=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
-      const notasHtml=[...items].sort((x,y)=>{
-        const dX=diasD(x.r['DATA EMISSAO']||x.r['DATA EMISSÃO']||gc(x.r,10))||0;
-        const dY=diasD(y.r['DATA EMISSAO']||y.r['DATA EMISSÃO']||gc(y.r,10))||0;
-        return dY-dX;
-      }).map(({r,a})=>{
+      const notasHtml=items.map(({r,a})=>{
         const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
         const doc=r['DOCUMENTO']||gc(r,0)||'—';
         const dias=diasD(r['DATA EMISSAO']||gc(r,10));
@@ -1565,7 +1562,7 @@ function filtrarAlertas(){
   const lFiltrado=ctrlFiltro?limiteViol.filter(({r})=>{const ct=String(getCed(r).controlador||'Sem controlador').trim();return ct===ctrlFiltro;}):limiteViol;
   if(cp)cp.innerHTML=buildColuna(pFiltrado,'');
   if(cl)cl.innerHTML=buildColuna(lFiltrado,'');
-  if(cr)cr.innerHTML=buildColunaRecompra(rFiltrado);
+  if(cr)cr.innerHTML=buildColuna(rFiltrado,'');
   const pc=document.getElementById('alrt-prazo-cnt');
   const lc=document.getElementById('alrt-limite-cnt');
   const rc=document.getElementById('alrt-rec-cnt');
@@ -1574,79 +1571,6 @@ function filtrarAlertas(){
   if(lc)lc.textContent=lFiltrado.length;
   if(rc)rc.textContent=rFiltrado.length;
   if(ac)ac.textContent=pFiltrado.length+' prazo · '+lFiltrado.length+' limite · '+rFiltrado.length+' recompra';
-}
-
-// ── RECOMPRA POR MOTIVO ──
-function buildColunaRecompra(viols){
-  if(!viols.length)return'<div class="empty" style="padding:1rem;color:var(--green)">✓ Nenhuma</div>';
-  const MOTIVO_CORES={
-    'Cheque Devolvido':'#f05252','Inadimplencia Sacado':'#f05252','Falencia RJ Sacado':'#f05252',
-    'Fraude Comprovada Cedente':'#f05252','Impedimento Legal Ou Judicial':'#f05252',
-    'Devolução de Mercadoria':'#fb923c','Disputa Comercial Ou Recusa Sacado':'#fb923c',
-    'Mercadoria não entregue':'#fb923c','Titulos em atraso':'#fb923c',
-    'Erro Documental Ou Dados Cedente':'#fbbf24','Erro Operacional Interno':'#fbbf24',
-    'Erro Processual Cedente':'#fbbf24','NF Cancelada Ou Invalida':'#fbbf24',
-    'Lastro Comercial Nao Verificavel':'#f5a623',
-    'Pagamento Direto ao Cedente':'#5b8af5','PRORROGAÇÃO':'#5b8af5',
-    'Substituicao Titulo Cedente':'#5b8af5','Solicitado pelo cliente':'#9294a0',
-    'CCP Gerado':'#9294a0','Outros Em Analise':'#9294a0'
-  };
-  const porMotivo={};
-  viols.forEach(({r,motivo})=>{
-    const m=motivo||'Sem motivo';
-    if(!porMotivo[m])porMotivo[m]=[];
-    porMotivo[m].push(r);
-  });
-  return Object.entries(porMotivo).sort((a,b)=>b[1].length-a[1].length).map(([motivo,rows])=>{
-    const cor=MOTIVO_CORES[motivo]||'#9294a0';
-    const uidM='recm_'+motivo.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Math.random().toString(36).substr(2,4);
-    const totalVal=rows.reduce((s,r)=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
-    const porGrp={};
-    rows.forEach(r=>{
-      const g=getCed(r).grupo||'Sem grupo';
-      if(!porGrp[g])porGrp[g]=[];
-      porGrp[g].push(r);
-    });
-    const grpHtml=Object.entries(porGrp).sort((a,b)=>b[1].length-a[1].length).map(([grp,gRows])=>{
-      const uidG='recg_'+grp.replace(/[^a-zA-Z0-9]/g,'_')+'_'+Math.random().toString(36).substr(2,4);
-      const gVal=gRows.reduce((s,r)=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
-      const notasHtml=[...gRows].sort((a,b)=>{
-        const dA=diasD(a['DATA EMISSAO']||a['DATA EMISSÃO']||gc(a,10))||0;
-        const dB=diasD(b['DATA EMISSAO']||b['DATA EMISSÃO']||gc(b,10))||0;
-        return dB-dA;
-      }).map(r=>{
-        const doc=r['DOCUMENTO']||gc(r,0)||'—';
-        const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
-        const dias=diasD(r['DATA EMISSAO']||gc(r,10));
-        return`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center">
-          <span style="color:var(--text2);font-family:monospace;flex-shrink:0">${doc}</span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sacado||'—'}</span>
-          ${dias!==null?`<span style="color:var(--amber);flex-shrink:0">${dias}d</span>`:''}
-        </div>`;
-      }).join('');
-      return`<div style="margin-bottom:6px;background:var(--bg2);border-radius:4px;overflow:hidden">
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer" onclick="toggleGrp('${uidG}')">
-          <span style="font-size:11px">📦</span>
-          <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${grp}</span>
-          <span style="font-size:10px;color:var(--text2);font-family:'DM Mono',monospace;white-space:nowrap">${fmtVal(gVal)}</span>
-          <span class="badge" style="background:${cor}22;color:${cor}">${gRows.length}</span>
-          <span id="${uidG}_ico" style="font-size:10px;color:var(--text3)">▶</span>
-        </div>
-        <div id="${uidG}" style="display:none;padding:0 10px 6px">${notasHtml}</div>
-      </div>`;
-    }).join('');
-    return`<div style="margin-bottom:10px;background:var(--bg3);border-radius:var(--radius-sm);overflow:hidden;border-left:3px solid ${cor}">
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer" onclick="toggleGrp('${uidM}')">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${motivo}</div>
-          <div style="font-size:10px;color:var(--text2);margin-top:2px">${rows.length} nota${rows.length>1?'s':''} · ${fmtVal(totalVal)}</div>
-        </div>
-        <span class="badge" style="background:${cor}22;color:${cor};flex-shrink:0">${rows.length}</span>
-        <span id="${uidM}_ico" style="font-size:10px;color:var(--text3);flex-shrink:0">▶</span>
-      </div>
-      <div id="${uidM}" style="display:none;padding:0 8px 8px">${grpHtml}</div>
-    </div>`;
-  }).join('');
 }
 
 // ── HISTÓRICO ──
