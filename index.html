@@ -1897,11 +1897,13 @@ async function loadConfig(){
         DEFAULT_RULES={min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
         return;
       }
-      if(/^[A-Za-z]/.test(r[0])){
-        REGRAS_GRP[r[0]]={min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
-      } else {
+      // Se só tem dígitos é CPF/CNPJ, senão é grupo
+      const soDigitos=/^[\d.\/\-]+$/.test(r[0].trim());
+      if(soDigitos){
         const cpf=r[0].replace(/\D/g,'');
         REGRAS_CED[cpf]={nome:r[1]||'',min:parseFloat(r[2])||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(r[4])||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(r[6])||100000,dias:parseInt(r[7])||7};
+      } else {
+        REGRAS_GRP[r[0]]={min:parseFloat(String(r[2]).replace(/[^\d.]/g,''))||0,cedPct:parseFloat(r[3])||20,cedVal:parseFloat(String(r[4]).replace(/[^\d.]/g,''))||100000,sacPct:parseFloat(r[5])||20,sacVal:parseFloat(String(r[6]).replace(/[^\d.]/g,''))||100000,dias:parseInt(r[7])||7};
       }
     });
   }catch(e){console.error('loadConfig erro:',e);}
