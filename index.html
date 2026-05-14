@@ -1389,37 +1389,69 @@ function renderControladores(){
     const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
     const valVenc=mine.filter(({r})=>prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
     const valAlrt=mine.filter(({r})=>prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
-    // Agrupar prioridades por grupo economico
-    const pendByGrupo={};
-    mine.filter(({r,idx})=>conf(r)==='P').forEach(({r,idx,valorNota})=>{
+    // Construir mapa de grupos com todas as categorias
+    const grpMap={};
+    mine.forEach(({r,idx,valorNota})=>{
       const cpf=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
       const grupo=getCed(r).grupo||'Sem grupo';
       const sacado=String(r['SACADO']||gc(r,6)||'').trim().split(' ').slice(0,2).join(' ');
       const doc=String(r['DOCUMENTO']||gc(r,0)||'').trim();
       const dias=diasD(r['DATA EMISSAO']||gc(r,10))||0;
       const novo=isNovo(cpf);
-      const vencido=prazoSt(r)==='vencido';
-      const temLimite=_alertMap[idx]?.nivelLimite==='bloqueio';
-      const emAlerta=prazoSt(r)==='alerta';
-      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,vencido:false,emAlerta:false,temLimite:false,notasVenc:0,notasAlerta:0,todasNotas:[]};
-      pendByGrupo[grupo].notas++;
-      pendByGrupo[grupo].val+=valorNota;
-      if(dias>pendByGrupo[grupo].maxDias)pendByGrupo[grupo].maxDias=dias;
-      if(novo)pendByGrupo[grupo].novo=true;
-      if(vencido){pendByGrupo[grupo].vencido=true;pendByGrupo[grupo].notasVenc++;}
-      if(emAlerta){pendByGrupo[grupo].emAlerta=true;pendByGrupo[grupo].notasAlerta++;}
-      if(temLimite)pendByGrupo[grupo].temLimite=true;
-      if(vencido||emAlerta)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,emAlerta,novo});
+      const cf=conf(r);
+      const vencido=cf==='P'&&prazoSt(r)==='vencido';
+      const emAlerta=cf==='P'&&prazoSt(r)==='alerta';
+      if(!grpMap[grupo])grpMap[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,notasVenc:[],notasAlerta:[],notasNovo:[],feito:0,valFeito:0};
+      grpMap[grupo].notas++;
+      grpMap[grupo].val+=valorNota;
+      if(dias>grpMap[grupo].maxDias)grpMap[grupo].maxDias=dias;
+      if(novo)grpMap[grupo].novo=true;
+      if(cf==='C'){grpMap[grupo].feito++;grpMap[grupo].valFeito+=valorNota;}
+      if(vencido)grpMap[grupo].notasVenc.push({doc,sacado,dias});
+      if(emAlerta)grpMap[grupo].notasAlerta.push({doc,sacado,dias});
+      if(cf==='P'&&novo)grpMap[grupo].notasNovo.push({doc,sacado,dias});
     });
-    // Só exibir grupos que têm pelo menos 1 nota vencida OU cedente novo OU limite
-    const prioridades=Object.values(pendByGrupo)
-      .filter(p=>p.vencido||p.emAlerta||p.novo||p.temLimite)
-      .sort((a,b)=>{
-        const catA=a.vencido?0:a.emAlerta?1:a.novo?2:a.temLimite?3:4;
-        const catB=b.vencido?0:b.emAlerta?1:b.novo?2:b.temLimite?3:4;
-        if(catA!==catB)return catA-catB;
-        return b.maxDias-a.maxDias;
-      }).slice(0,10);
+    const todosGrps=Object.values(grpMap);
+    const grpsVenc=todosGrps.filter(g=>g.notasVenc.length).sort((a,b)=>b.maxDias-a.maxDias);
+    const grpsAlerta=todosGrps.filter(g=>g.notasAlerta.length&&!g.notasVenc.length).sort((a,b)=>b.maxDias-a.maxDias);
+    const grpsNovo=todosGrps.filter(g=>g.novo&&!g.notasVenc.length&&!g.notasAlerta.length).sort((a,b)=>b.notas-a.notas);
+    const grpsSemPend=todosGrps.filter(g=>g.notas>0&&g.feito===g.notas).sort((a,b)=>b.notas-a.notas);
+
+    // Função para renderizar lista de notas dentro de um grupo
+    function mkNotasGrp(notas,cor){
+      return notas.sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center">
+        <span style="color:var(--text2);font-family:monospace;flex-shrink:0">${n.doc}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.sacado||'—'}</span>
+        <span style="color:${cor};flex-shrink:0">${n.dias}d</span>
+      </div>`).join('');
+    }
+
+    // Função para renderizar seção com cedentes expansíveis
+    function mkSecao(titulo,cor,badge,grupos,getNtas,corDia){
+      if(!grupos.length)return'';
+      const uid='sec_'+ctrl.replace(/\s/g,'_')+'_'+titulo.replace(/\s/g,'_');
+      const cedHtml=grupos.map(g=>{
+        const notas=getNtas(g);
+        const uid2=uid+'_'+g.grupo.replace(/[^a-zA-Z0-9]/g,'_');
+        return`<div style="margin-bottom:4px;background:var(--bg3);border-radius:4px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer" onclick="toggleGrp('${uid2}')">
+            <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.grupo}</span>
+            <span style="font-size:10px;color:var(--text2)">${notas.length} nota${notas.length>1?'s':''}</span>
+            <span style="font-size:10px;color:${cor};font-weight:500">${g.maxDias}d</span>
+            <span id="${uid2}_ico" style="font-size:10px;color:var(--text3)">▶</span>
+          </div>
+          <div id="${uid2}" style="display:none;padding:0 8px 6px">${mkNotasGrp(notas,corDia)}</div>
+        </div>`;
+      }).join('');
+      return`<div style="margin-bottom:8px;border:1px solid ${cor}33;border-radius:var(--radius-sm);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;background:${cor}11" onclick="toggleGrp('${uid}')">
+          <span style="font-size:11px;font-weight:600;color:${cor};flex:1">${titulo}</span>
+          <span style="background:${cor}22;color:${cor};padding:1px 7px;border-radius:100px;font-size:10px;font-weight:500">${badge}</span>
+          <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
+        </div>
+        <div id="${uid}" style="display:none;padding:6px 8px">${cedHtml}</div>
+      </div>`;
+    }
     return`<div class="ctrl-card">
       <div class="ctrl-card-hdr">
         <div class="ctrl-avatar">${ctrl.substring(0,2).toUpperCase()}</div>
@@ -1437,24 +1469,17 @@ function renderControladores(){
         <div class="ctrl-prog-lbl"><span>Progresso</span><span>${pctFeito}%</span></div>
         <div class="ctrl-prog-track"><div class="ctrl-prog-fill" style="width:${pctFeito}%"></div></div>
       </div>
-      ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
-        const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
-        const notasHtml=p.todasNotas?[...p.todasNotas].sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:${n.vencido?'#f05252':n.emAlerta?'#f5a623':'var(--text2)'}">${n.dias}d</span></div>`).join(''):'';
-        const dotCor=p.vencido?'#f05252':p.emAlerta?'#f5a623':p.novo?'#a78bfa':p.temLimite?'#fbbf24':'#5b8af5';
-        const catLabel=p.vencido?'<span style="font-size:9px;background:#f0525222;color:#f05252;padding:1px 5px;border-radius:100px;flex-shrink:0">vencido</span>':p.emAlerta?'<span style="font-size:9px;background:#f5a62322;color:#f5a623;padding:1px 5px;border-radius:100px;flex-shrink:0">alerta</span>':p.novo?'<span style="font-size:9px;background:#a78bfa22;color:#a78bfa;padding:1px 5px;border-radius:100px;flex-shrink:0">novo</span>':p.temLimite?'<span style="font-size:9px;background:#fbbf2422;color:#fbbf24;padding:1px 5px;border-radius:100px;flex-shrink:0">limite</span>':'';
-        const subInfo=(p.notasVenc?`<span style="color:#f05252">${p.notasVenc} vencida${p.notasVenc>1?'s':''}</span>`:'')+(p.notasAlerta?(p.notasVenc?' · ':'')+`<span style="color:#f5a623">${p.notasAlerta} alerta${p.notasAlerta>1?'s':''}</span>`:'')+(p.notasVenc||p.notasAlerta?' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':''));
-        return`<div class="priority-item" style="flex-direction:column;align-items:stretch;gap:0">
-          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0" onclick="toggleGrp('${uid}')">
-            <div class="priority-dot" style="background:${dotCor};flex-shrink:0"></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.grupo}</strong>${catLabel}</div>
-              <div style="font-size:10px;color:var(--text2)">${subInfo} · ${p.maxDias}d · ${fmtVal(p.val)}</div>
-            </div>
-            <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
-          </div>
-          <div id="${uid}" style="display:none;margin-top:6px;padding:4px 6px;background:var(--bg3);border-radius:4px;max-height:150px;overflow-y:auto">${notasHtml}</div>
+      ${(()=>{
+        const temAlgo=grpsVenc.length||grpsAlerta.length||grpsNovo.length||grpsSemPend.length;
+        if(!temAlgo)return'';
+        return`<div class="priority-list">
+          <div class="priority-title">Grupos por situação</div>
+          ${mkSecao('🔴 Prazo vencido','#f05252',grpsVenc.length+' grupo'+(grpsVenc.length>1?'s':''),grpsVenc,g=>g.notasVenc,'#f05252')}
+          ${mkSecao('🟡 Em alerta','#f5a623',grpsAlerta.length+' grupo'+(grpsAlerta.length>1?'s':''),grpsAlerta,g=>g.notasAlerta,'#f5a623')}
+          ${mkSecao('🟣 Cedentes novos','#a78bfa',grpsNovo.length+' grupo'+(grpsNovo.length>1?'s':''),grpsNovo,g=>g.notasNovo,'#a78bfa')}
+          ${mkSecao('✅ Sem pendência','#2dd4a0',grpsSemPend.length+' grupo'+(grpsSemPend.length>1?'s':''),grpsSemPend,g=>[{doc:'—',sacado:g.feito+' notas confirmadas',dias:0}],'#2dd4a0')}
         </div>`;
-      }).join('')}</div>`:''}
+      })()}
     </div>`;
   }).join('')}</div>`;
 }
