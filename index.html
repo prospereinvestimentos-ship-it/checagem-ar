@@ -1093,6 +1093,13 @@ function buildAll(){
     if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:'',isento:false,noAto:false};
     else if(c.grupo&&PRAZOS_GRUPO[c.grupo]&&PRAZOS_GRUPO[c.grupo].noAto===undefined)PRAZOS_GRUPO[c.grupo].noAto=false;
   });
+  // Diagnóstico: logar colunas e amostra de CONF para debug
+  if(TITS_ELEG.length>0){
+    const r0=TITS_ELEG[0];
+    console.log('Colunas do arquivo:',Object.keys(r0).slice(0,10));
+    console.log('CONF col0:',r0['CONF'],'gc1:',gc(r0,1),'HISTORICO:',r0['HISTORICO']||gc(r0,24));
+    console.log('CEDS carregados:',Object.keys(CEDS).length);
+  }
   _alertMap=calcAlertMap();
   _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
   const nAlert=_alertMap.filter((a,i)=>{
