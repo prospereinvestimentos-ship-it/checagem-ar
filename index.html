@@ -1401,19 +1401,8 @@ function renderControladores(){
     const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
     const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
-    // A Confirmar = CONF≠C + dentro das regras (sem prazo vencido e sem limite estourado) + acima do valor mínimo
-    const aConfirmar=mine.filter(({r,idx})=>{
-      if(conf(r)==='C')return false; // já confirmado
-      const ps=prazoSt(r);
-      if(ps==='vencido')return false; // vai para alerta bloqueio
-      if(_alertMap[idx]?.nivelLimite==='bloqueio')return false; // limite estourado
-      const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
-      const reg=getRegra(cpfC);
-      const min=reg?parseFloat(reg.min)||0:DEFAULT_RULES.min;
-      const val=parseVal(r['VALOR(R$)']||gc(r,18));
-      if(val<min)return false; // abaixo do mínimo
-      return true;
-    });
+    // A Confirmar = tudo CONF≠C (vencido + alerta + novos + dentro do prazo)
+    const aConfirmar=mine.filter(({r})=>conf(r)!=='C');
     const aFazer=aConfirmar.length;
     const valP=aConfirmar.reduce((s,{valorNota})=>s+valorNota,0);
     const pctFeito=(feito+aFazer)?Math.round(feito/(feito+aFazer)*100):0;
@@ -1429,7 +1418,7 @@ function renderControladores(){
       const cf=conf(r);
       const vencido=cf==='P'&&prazoSt(r)==='vencido';
       const emAlerta=cf==='P'&&prazoSt(r)==='alerta';
-      if(!grpMap[grupo])grpMap[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,notasVenc:[],notasAlerta:[],notasNovo:[],feito:0,valFeito:0};
+      if(!grpMap[grupo])grpMap[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,notasVenc:[],notasAlerta:[],notasNovo:[],notasDentroPrazo:[],feito:0,valFeito:0};
       grpMap[grupo].notas++;
       grpMap[grupo].val+=valorNota;
       if(dias>grpMap[grupo].maxDias)grpMap[grupo].maxDias=dias;
@@ -1438,11 +1427,14 @@ function renderControladores(){
       if(vencido)grpMap[grupo].notasVenc.push({doc,sacado,dias});
       if(emAlerta)grpMap[grupo].notasAlerta.push({doc,sacado,dias});
       if(cf==='P'&&novo)grpMap[grupo].notasNovo.push({doc,sacado,dias});
+      const ps=prazoSt(r);
+      if(cf!=='C'&&!vencido&&!emAlerta&&!novo&&(ps==='ok'||ps==='sem'))grpMap[grupo].notasDentroPrazo.push({doc,sacado,dias});
     });
     const todosGrps=Object.values(grpMap);
     const grpsVenc=todosGrps.filter(g=>g.notasVenc.length).sort((a,b)=>b.maxDias-a.maxDias);
     const grpsAlerta=todosGrps.filter(g=>g.notasAlerta.length&&!g.notasVenc.length).sort((a,b)=>b.maxDias-a.maxDias);
     const grpsNovo=todosGrps.filter(g=>g.novo&&!g.notasVenc.length&&!g.notasAlerta.length).sort((a,b)=>b.notas-a.notas);
+    const grpsDentroPrazo=todosGrps.filter(g=>g.notasDentroPrazo.length&&!g.notasVenc.length&&!g.notasAlerta.length&&!g.novo).sort((a,b)=>b.notasDentroPrazo.length-a.notasDentroPrazo.length);
     const grpsSemPend=todosGrps.filter(g=>g.notas>0&&g.feito===g.notas).sort((a,b)=>b.notas-a.notas);
 
     // Função para renderizar lista de notas dentro de um grupo
@@ -1505,7 +1497,8 @@ function renderControladores(){
           ${mkSecao('🔴 Prazo vencido','#f05252',grpsVenc.length+' grupo'+(grpsVenc.length>1?'s':''),grpsVenc,g=>g.notasVenc,'#f05252')}
           ${mkSecao('🟡 Em alerta','#f5a623',grpsAlerta.length+' grupo'+(grpsAlerta.length>1?'s':''),grpsAlerta,g=>g.notasAlerta,'#f5a623')}
           ${mkSecao('🟣 Cedentes novos','#a78bfa',grpsNovo.length+' grupo'+(grpsNovo.length>1?'s':''),grpsNovo,g=>g.notasNovo,'#a78bfa')}
-          ${mkSecao('✅ Sem pendência','#2dd4a0',grpsSemPend.length+' grupo'+(grpsSemPend.length>1?'s':''),grpsSemPend,g=>[{doc:'—',sacado:g.feito+' notas confirmadas',dias:0}],'#2dd4a0')}
+          ${mkSecao('⚪ Dentro do prazo','#9294a0',grpsDentroPrazo.length+' grupo'+(grpsDentroPrazo.length>1?'s':''),grpsDentroPrazo,g=>g.notasDentroPrazo,'var(--text2)')}
+          ${mkSecao('✅ Confirmados','#2dd4a0',grpsSemPend.length+' grupo'+(grpsSemPend.length>1?'s':''),grpsSemPend,g=>[{doc:'—',sacado:g.feito+' notas confirmadas',dias:0}],'#2dd4a0')}
         </div>`;
       })()}
     </div>`;
