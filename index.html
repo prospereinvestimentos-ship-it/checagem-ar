@@ -867,7 +867,7 @@ function loadFile(inp,tipo){
   const elLabel=tipo==='tit'?document.getElementById('ul-tit2'):document.getElementById('ul-ced2');
   if(elLabel)elLabel.textContent='Lendo arquivo...';
   const reader=new FileReader();
-  reader.onload=async e=>{
+  reader.onload=e=>{
     try{
       const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
@@ -875,37 +875,19 @@ function loadFile(inp,tipo){
       if(tipo==='ced'){
         parseCeds(raw);
         document.getElementById('uc-ced2').classList.add('done');
-        document.getElementById('ul-ced2').textContent=Object.keys(CEDS).length+' cedentes ✓';
+        if(elLabel)elLabel.textContent=Object.keys(CEDS).length+' cedentes ✓';
         buildAll();
       } else {
         TITS=raw;
-        // Só recarregar cedentes se ainda não estiverem carregados
-        if(!Object.keys(CEDS).length){
-          showLoader('Carregando cedentes...');
-          await loadCedentesAuto();
-          await loadConfig();
-          hideLoader();
-        }
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
-        _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
-        // Salvar elegíveis no Sheets (usa TITS_ELEG filtrado, não o raw completo)
-        if(TITS_ELEG.length<=20000){
-          salvarTitulosPorChunks(TITS_ELEG, currentUser.nome, elLabel);
-        } else {
-          if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis (sessão)';elLabel.style.color='var(--green)';}
-        }
       }
     }catch(err){
       console.error('loadFile erro:',err);
       if(elLabel){elLabel.textContent='Erro ao carregar';elLabel.style.color='var(--red)';}
     }
-    inp.value='';
-  };
-  reader.onerror=()=>{
-    if(elLabel){elLabel.textContent='Erro na leitura';elLabel.style.color='var(--red)';}
     inp.value='';
   };
   reader.readAsArrayBuffer(file);
