@@ -1380,11 +1380,15 @@ function renderControladores(){
     const aFazer=mine.filter(({r})=>conf(r)==='P').length;
     const venc=mine.filter(({r})=>prazoSt(r)==='vencido').length;
     const alrt=mine.filter(({r})=>prazoSt(r)==='alerta').length;
-    const novos=mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).length;
+    // Cedentes novos — CPFs únicos com isNovo dentro da carteira desse controlador
+    const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
+    const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
-    // Progresso = Feito / (Feito + A fazer) - so o que precisa ser checado
     const pctFeito=(feito+aFazer)?Math.round(feito/(feito+aFazer)*100):0;
     const valP=mine.filter(({r})=>conf(r)==='P').reduce((s,{valorNota})=>s+valorNota,0);
+    const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
+    const valVenc=mine.filter(({r})=>prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
+    const valAlrt=mine.filter(({r})=>prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
     // Agrupar prioridades por grupo economico
     const pendByGrupo={};
     mine.filter(({r,idx})=>conf(r)==='P').forEach(({r,idx,valorNota})=>{
@@ -1396,80 +1400,49 @@ function renderControladores(){
       const novo=isNovo(cpf);
       const vencido=prazoSt(r)==='vencido';
       const temLimite=_alertMap[idx]?.nivelLimite==='bloqueio';
-      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,vencido:false,temLimite:false,notasVenc:0,todasNotas:[]};
-      // Conta todas as notas do grupo para referência
+      const emAlerta=prazoSt(r)==='alerta';
+      if(!pendByGrupo[grupo])pendByGrupo[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,vencido:false,emAlerta:false,temLimite:false,notasVenc:0,notasAlerta:0,todasNotas:[]};
       pendByGrupo[grupo].notas++;
       pendByGrupo[grupo].val+=valorNota;
       if(dias>pendByGrupo[grupo].maxDias)pendByGrupo[grupo].maxDias=dias;
       if(novo)pendByGrupo[grupo].novo=true;
       if(vencido){pendByGrupo[grupo].vencido=true;pendByGrupo[grupo].notasVenc++;}
+      if(emAlerta){pendByGrupo[grupo].emAlerta=true;pendByGrupo[grupo].notasAlerta++;}
       if(temLimite)pendByGrupo[grupo].temLimite=true;
-      // Só adiciona a nota na lista se for vencida, nova com pendência, ou com limite
-      if(vencido)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,novo});
+      if(vencido||emAlerta)pendByGrupo[grupo].todasNotas.push({doc,sacado,dias,vencido,emAlerta,novo});
     });
     // Só exibir grupos que têm pelo menos 1 nota vencida OU cedente novo OU limite
     const prioridades=Object.values(pendByGrupo)
-      .filter(p=>p.vencido||p.novo||p.temLimite)
+      .filter(p=>p.vencido||p.emAlerta||p.novo||p.temLimite)
       .sort((a,b)=>{
-        const catA=a.vencido?0:a.novo?1:a.temLimite?2:3;
-        const catB=b.vencido?0:b.novo?1:b.temLimite?2:3;
+        const catA=a.vencido?0:a.emAlerta?1:a.novo?2:a.temLimite?3:4;
+        const catB=b.vencido?0:b.emAlerta?1:b.novo?2:b.temLimite?3:4;
         if(catA!==catB)return catA-catB;
         return b.maxDias-a.maxDias;
-      }).slice(0,8);
+      }).slice(0,10);
     return`<div class="ctrl-card">
       <div class="ctrl-card-hdr">
         <div class="ctrl-avatar">${ctrl.substring(0,2).toUpperCase()}</div>
         <div><div class="ctrl-name">${ctrl}</div><div class="ctrl-sub">${tot.toLocaleString('pt-BR')} notas na carteira</div></div>
       </div>
       <div class="ctrl-metrics">
-        <div class="ctrl-met"><div class="ctrl-met-lbl">A fazer</div><div class="ctrl-met-val mv-amber">${aFazer.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valP)}</div></div>
-        <div class="ctrl-met"><div class="ctrl-met-lbl">Feito</div><div class="ctrl-met-val mv-green">${feito.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${pctFeito}% concluido</div></div>
+        <div class="ctrl-met"><div class="ctrl-met-lbl">A Confirmar</div><div class="ctrl-met-val mv-amber">${aFazer.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valP)}</div></div>
+        <div class="ctrl-met"><div class="ctrl-met-lbl">Confirmado</div><div class="ctrl-met-val mv-green">${feito.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valF)}</div></div>
         <div class="ctrl-met"><div class="ctrl-met-lbl">Alerta bloqueio</div><div class="ctrl-met-val mv-red">${bloq.toLocaleString('pt-BR')}</div></div>
-        <div class="ctrl-met"><div class="ctrl-met-lbl">Prazo vencido</div><div class="ctrl-met-val mv-red">${venc.toLocaleString('pt-BR')}</div></div>
+        <div class="ctrl-met"><div class="ctrl-met-lbl">Prazo vencido</div><div class="ctrl-met-val mv-red">${venc.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valVenc)}</div></div>
         ${novos?`<div class="ctrl-met"><div class="ctrl-met-lbl">Cedentes novos</div><div class="ctrl-met-val mv-purple">${novos}</div></div>`:''}
-        ${alrt?`<div class="ctrl-met"><div class="ctrl-met-lbl">Alerta prazo</div><div class="ctrl-met-val mv-amber">${alrt}</div></div>`:''}
+        ${alrt?`<div class="ctrl-met"><div class="ctrl-met-lbl">Alerta prazo</div><div class="ctrl-met-val mv-amber">${alrt.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valAlrt)}</div></div>`:''}
       </div>
       <div class="ctrl-progress">
         <div class="ctrl-prog-lbl"><span>Progresso</span><span>${pctFeito}%</span></div>
         <div class="ctrl-prog-track"><div class="ctrl-prog-fill" style="width:${pctFeito}%"></div></div>
       </div>
-      ${(()=>{
-        // Grupos sem pendência — todos os grupos do controlador com CONF=C ou sem notas P
-        const gruposSemPend={};
-        mine.forEach(({r,valorNota})=>{
-          const grupo=getCed(r).grupo||'Sem grupo';
-          if(!gruposSemPend[grupo])gruposSemPend[grupo]={grupo,notas:0,feito:0,val:0};
-          gruposSemPend[grupo].notas++;
-          gruposSemPend[grupo].val+=valorNota;
-          if(conf(r)==='C')gruposSemPend[grupo].feito++;
-        });
-        // Filtrar só os que não têm nenhuma pendente (todos confirmados)
-        const semPend=Object.values(gruposSemPend)
-          .filter(g=>g.notas>0&&g.feito===g.notas)
-          .sort((a,b)=>b.notas-a.notas);
-        if(!semPend.length)return'';
-        const uid='semP_'+ctrl.replace(/\s/g,'_');
-        const semPendHtml=semPend.map(g=>`
-          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
-            <span style="color:var(--green);flex-shrink:0">✓</span>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.grupo}</span>
-            <span style="font-size:10px;color:var(--text2)">${g.notas} nota${g.notas>1?'s':''}</span>
-            <span style="font-size:10px;color:var(--text2);font-family:'DM Mono',monospace">${fmtVal(g.val)}</span>
-          </div>`).join('');
-        return`<div class="priority-list" style="border-top:1px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0;margin-bottom:6px" onclick="toggleGrp('${uid}')">
-            <div class="priority-title" style="margin-bottom:0">Grupos sem pendência <span style="background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:100px;font-size:10px">${semPend.length}</span></div>
-            <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
-          </div>
-          <div id="${uid}" style="display:none;max-height:200px;overflow-y:auto">${semPendHtml}</div>
-        </div>`;
-      })()}
       ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
         const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
         const notasHtml=p.todasNotas?[...p.todasNotas].sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:${n.vencido?'#f05252':n.emAlerta?'#f5a623':'var(--text2)'}">${n.dias}d</span></div>`).join(''):'';
         const dotCor=p.vencido?'#f05252':p.emAlerta?'#f5a623':p.novo?'#a78bfa':p.temLimite?'#fbbf24':'#5b8af5';
         const catLabel=p.vencido?'<span style="font-size:9px;background:#f0525222;color:#f05252;padding:1px 5px;border-radius:100px;flex-shrink:0">vencido</span>':p.emAlerta?'<span style="font-size:9px;background:#f5a62322;color:#f5a623;padding:1px 5px;border-radius:100px;flex-shrink:0">alerta</span>':p.novo?'<span style="font-size:9px;background:#a78bfa22;color:#a78bfa;padding:1px 5px;border-radius:100px;flex-shrink:0">novo</span>':p.temLimite?'<span style="font-size:9px;background:#fbbf2422;color:#fbbf24;padding:1px 5px;border-radius:100px;flex-shrink:0">limite</span>':'';
-        const subInfo=(p.notasVenc?p.notasVenc+' vencida'+(p.notasVenc>1?'s':''):'')+(p.notasAlerta?(p.notasVenc?' · ':'')+p.notasAlerta+' alerta':'')+(p.notasVenc||p.notasAlerta?' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':''));
+        const subInfo=(p.notasVenc?`<span style="color:#f05252">${p.notasVenc} vencida${p.notasVenc>1?'s':''}</span>`:'')+(p.notasAlerta?(p.notasVenc?' · ':'')+`<span style="color:#f5a623">${p.notasAlerta} alerta${p.notasAlerta>1?'s':''}</span>`:'')+(p.notasVenc||p.notasAlerta?' / '+p.notas+' total':p.notas+' nota'+(p.notas>1?'s':''));
         return`<div class="priority-item" style="flex-direction:column;align-items:stretch;gap:0">
           <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0" onclick="toggleGrp('${uid}')">
             <div class="priority-dot" style="background:${dotCor};flex-shrink:0"></div>
