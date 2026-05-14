@@ -633,8 +633,8 @@ async function sAppend(range,values){
 // ── LOGIN ──
 async function loadUsers(){
   try{
-    const rows=await sGet('Usuarios!A:E');
-    if(rows.length<=1){USERS=[{nome:'Admin',perfil:'admin',pin:'1234',cor:'#f5a623',iniciais:'AD'}];await sSet('Usuarios!A1',[['NOME','PERFIL','PIN','COR','INICIAIS'],['Admin','admin','1234','#f5a623','AD']]);}
+    const rows=await sGet('Usuarios!A:F');
+    if(rows.length<=1){USERS=[{nome:'Admin',perfil:'admin',pin:'1234',cor:'#f5a623',iniciais:'AD'}];await sSet('Usuarios!A1',[['NOME','PERFIL','PIN','COR','INICIAIS','EMAIL_GOOGLE'],['Admin','admin','1234','#f5a623','AD','']]);}
     else USERS=rows.slice(1).filter(r=>r[0]).map(r=>({nome:r[0]||'',perfil:r[1]||'operadora',pin:r[2]||'',cor:r[3]||'#2dd4a0',iniciais:r[4]||r[0].substring(0,2).toUpperCase(),email:(r[5]||'').toLowerCase().trim()}));
   }catch(e){USERS=[{nome:'Admin',perfil:'admin',pin:'1234',cor:'#f5a623',iniciais:'AD'}];}
   renderLoginUsers();
