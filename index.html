@@ -857,16 +857,20 @@ function loadFile(inp,tipo){
         buildAll();
       } else {
         TITS=raw;
+        // Sempre recarregar cedentes e config antes de filtrar para garantir dados frescos
+        if(elLabel)elLabel.textContent='Carregando configurações...';
+        await loadCedentesAuto();
+        await loadConfig();
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
-        // Salvar no Sheets para próximas sessões (só se arquivo for razoável)
+        // Só salva no Sheets se o arquivo tiver até 20k linhas — evita travar com arquivos grandes
         if(raw.length<=20000){
           salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
         } else {
-          if(elLabel)elLabel.textContent=TITS_ELEG.length+' elegíveis (muito grande para salvar)';
+          if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis (sessão)';elLabel.style.color='var(--green)';}
         }
       }
     }catch(err){
@@ -1094,13 +1098,6 @@ function buildAll(){
     if(c.grupo&&!PRAZOS_GRUPO[c.grupo])PRAZOS_GRUPO[c.grupo]={pedido:'',entrega:'',isento:false,noAto:false};
     else if(c.grupo&&PRAZOS_GRUPO[c.grupo]&&PRAZOS_GRUPO[c.grupo].noAto===undefined)PRAZOS_GRUPO[c.grupo].noAto=false;
   });
-  // Diagnóstico: logar colunas e amostra de CONF para debug
-  if(TITS_ELEG.length>0){
-    const r0=TITS_ELEG[0];
-    console.log('Colunas do arquivo:',Object.keys(r0).slice(0,10));
-    console.log('CONF col0:',r0['CONF'],'gc1:',gc(r0,1),'HISTORICO:',r0['HISTORICO']||gc(r0,24));
-    console.log('CEDS carregados:',Object.keys(CEDS).length);
-  }
   _alertMap=calcAlertMap();
   _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
   const nAlert=_alertMap.filter((a,i)=>{
