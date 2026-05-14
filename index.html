@@ -238,7 +238,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
   <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:2.5rem;width:340px;text-align:center">
     <div style="width:48px;height:48px;background:var(--green-bg);border:1px solid rgba(45,212,160,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;font-size:22px">📋</div>
     <div style="font-size:18px;font-weight:600;margin-bottom:6px">Checagem AR</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:1.75rem">Acesso restrito — @prospereinvestimentos.com.br</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:1.75rem">Acesso restrito — entre com sua conta Google autorizada</div>
     <div id="google-btn-wrap" style="display:flex;justify-content:center;margin-bottom:1rem"></div>
     <div id="google-error" style="font-size:12px;color:var(--red);min-height:18px"></div>
   </div>
@@ -647,7 +647,7 @@ async function loadUsers(){
   try{
     const rows=await sGet('Usuarios!A:E');
     if(rows.length<=1){USERS=[{nome:'Admin',perfil:'admin',pin:'1234',cor:'#f5a623',iniciais:'AD'}];await sSet('Usuarios!A1',[['NOME','PERFIL','PIN','COR','INICIAIS'],['Admin','admin','1234','#f5a623','AD']]);}
-    else USERS=rows.slice(1).filter(r=>r[0]).map(r=>({nome:r[0]||'',perfil:r[1]||'operadora',pin:r[2]||'',cor:r[3]||'#2dd4a0',iniciais:r[4]||r[0].substring(0,2).toUpperCase()}));
+    else USERS=rows.slice(1).filter(r=>r[0]).map(r=>({nome:r[0]||'',perfil:r[1]||'operadora',pin:r[2]||'',cor:r[3]||'#2dd4a0',iniciais:r[4]||r[0].substring(0,2).toUpperCase(),email:(r[5]||'').toLowerCase().trim()}));
   }catch(e){USERS=[{nome:'Admin',perfil:'admin',pin:'1234',cor:'#f5a623',iniciais:'AD'}];}
   renderLoginUsers();
   // Listener teclado físico para PIN
@@ -2092,6 +2092,7 @@ function renderUsuariosPage(){
         <div><div style="font-size:13px;font-weight:500">${u.nome}</div><div style="font-size:11px;color:var(--text2)">${ROLE_LABELS[u.perfil]}</div></div>
       </div>
       <div class="user-field"><label>Nome</label><input type="text" value="${u.nome}" id="un-${i}"></div>
+      <div class="user-field"><label>Email Google (login)</label><input type="email" value="${u.email||''}" id="uemail-${i}" placeholder="usuario@gmail.com"></div>
       <div class="user-field"><label>Perfil</label><select id="up-${i}"><option value="admin" ${u.perfil==='admin'?'selected':''}>Admin</option><option value="supervisora" ${u.perfil==='supervisora'?'selected':''}>Supervisora</option><option value="operadora" ${u.perfil==='operadora'?'selected':''}>Operadora</option><option value="consulta" ${u.perfil==='consulta'?'selected':''}>Consulta</option></select></div>
       <div class="user-field"><label>PIN (4 dígitos)</label><input type="password" maxlength="4" value="${u.pin}" id="upin-${i}" placeholder="••••"></div>
       <div class="user-actions">
@@ -2100,10 +2101,10 @@ function renderUsuariosPage(){
       </div>
     </div>`).join('')+`<button class="btn-add-user" onclick="addUser()">+ Adicionar usuário</button>`;
 }
-async function saveUser(i){USERS[i].nome=document.getElementById(`un-${i}`).value;USERS[i].perfil=document.getElementById(`up-${i}`).value;const np=document.getElementById(`upin-${i}`).value;if(np.length===4)USERS[i].pin=np;USERS[i].iniciais=USERS[i].nome.substring(0,2).toUpperCase();USERS[i].cor=ROLE_COLORS[USERS[i].perfil];await saveUsersSheets();renderUsuariosPage();renderLoginUsers();}
+async function saveUser(i){USERS[i].nome=document.getElementById(`un-${i}`).value;USERS[i].email=(document.getElementById(`uemail-${i}`)?.value||'').toLowerCase().trim();USERS[i].perfil=document.getElementById(`up-${i}`).value;const np=document.getElementById(`upin-${i}`).value;if(np.length===4)USERS[i].pin=np;USERS[i].iniciais=USERS[i].nome.substring(0,2).toUpperCase();USERS[i].cor=ROLE_COLORS[USERS[i].perfil];await saveUsersSheets();renderUsuariosPage();renderLoginUsers();}
 async function deleteUser(i){if(!confirm(`Remover ${USERS[i].nome}?`))return;USERS.splice(i,1);await saveUsersSheets();renderUsuariosPage();renderLoginUsers();}
 async function addUser(){USERS.push({nome:'Novo usuário',perfil:'operadora',pin:'0000',cor:'#2dd4a0',iniciais:'NU'});await saveUsersSheets();renderUsuariosPage();renderLoginUsers();}
-async function saveUsersSheets(){const rows=[['NOME','PERFIL','PIN','COR','INICIAIS']];USERS.forEach(u=>rows.push([u.nome,u.perfil,u.pin,u.cor,u.iniciais]));await sSet('Usuarios!A1',rows);}
+async function saveUsersSheets(){const rows=[['NOME','PERFIL','PIN','COR','INICIAIS','EMAIL_GOOGLE']];USERS.forEach(u=>rows.push([u.nome,u.perfil,u.pin,u.cor,u.iniciais,u.email||'']));await sSet('Usuarios!A1',rows);}
 
 
 async function loadCedentesAuto(){
@@ -2402,7 +2403,7 @@ function addRegraRow(){
 // INIT
 // ── GOOGLE OAUTH ──
 const GOOGLE_CLIENT_ID = '740410266137-56l93k7ku71me3bijdgmouom8bo9u03a.apps.googleusercontent.com';
-const DOMINIO_PERMITIDO = 'prospereinvestimentos.com.br';
+// Emails autorizados vêm da aba Usuarios do Sheets — gerenciado em Configurações > Usuários
 
 function initGoogleAuth(){
   google.accounts.id.initialize({
@@ -2426,24 +2427,44 @@ function initGoogleAuth(){
   google.accounts.id.prompt();
 }
 
-function handleGoogleLogin(response){
+async function handleGoogleLogin(response){
   try{
     // Decodificar JWT do Google (sem verificação de assinatura — só leitura do payload)
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    const email = payload.email || '';
-    const domain = email.split('@')[1] || '';
-    if(domain !== DOMINIO_PERMITIDO){
-      document.getElementById('google-error').textContent =
-        'Acesso negado: use seu email @' + DOMINIO_PERMITIDO;
-      return;
-    }
-    // Email autorizado — esconder gate e mostrar login
-    document.getElementById('google-gate').style.display = 'none';
-    document.getElementById('login-screen').style.display = 'flex';
-    // Guardar email autenticado
+    const email = (payload.email || '').toLowerCase().trim();
     window._googleEmail = email;
     window._googleNome = payload.name || email;
-    loadUsers();
+    // Carregar usuários do Sheets e verificar se email está cadastrado
+    document.getElementById('google-error').textContent = '';
+    const btnWrap = document.getElementById('google-btn-wrap');
+    if(btnWrap) btnWrap.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px">Verificando acesso...</div>';
+    try{
+      const rows = await sGet('Usuarios!A:E');
+      // rows[0] = cabeçalho, rows[1..] = usuários
+      const emailsAutorizados = rows.slice(1)
+        .map(r => String(r[5]||'').toLowerCase().trim())
+        .filter(Boolean);
+      // Verificar se email está em algum usuário (coluna F = email Google)
+      // Se coluna email não existir ainda, permitir acesso e avisar
+      const temColEmail = rows[0] && rows[0][5] !== undefined;
+      if(temColEmail && !emailsAutorizados.includes(email)){
+        document.getElementById('google-error').textContent =
+          'Acesso negado: ' + email + ' não está cadastrado no sistema.';
+        if(btnWrap) btnWrap.innerHTML = '';
+        initGoogleAuth();
+        return;
+      }
+      // Acesso autorizado
+      document.getElementById('google-gate').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      loadUsers();
+    }catch(e){
+      console.error('Erro ao verificar acesso:',e);
+      // Se falhar a verificação, permitir acesso (não bloquear por erro de rede)
+      document.getElementById('google-gate').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+      loadUsers();
+    }
   }catch(e){
     console.error('handleGoogleLogin erro:',e);
     document.getElementById('google-error').textContent = 'Erro ao verificar login. Tente novamente.';
