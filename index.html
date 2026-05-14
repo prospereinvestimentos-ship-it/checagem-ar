@@ -8,6 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0f1117;--bg2:#161820;--bg3:#1e2028;--bg4:#252730;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#e8e9f0;--text2:#9294a0;--text3:#5a5c68;--green:#2dd4a0;--green-bg:rgba(45,212,160,0.1);--amber:#f5a623;--amber-bg:rgba(245,166,35,0.1);--red:#f05252;--red-bg:rgba(240,82,82,0.1);--blue:#5b8af5;--blue-bg:rgba(91,138,245,0.1);--purple:#a78bfa;--purple-bg:rgba(167,139,250,0.1);--orange:#fb923c;--orange-bg:rgba(251,146,60,0.1);--yellow:#fbbf24;--yellow-bg:rgba(251,191,36,0.1);--radius:10px;--radius-sm:6px}
+/* LOADER */
+#global-loader{display:none;position:fixed;bottom:20px;right:20px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 16px;font-size:12px;color:var(--text2);z-index:9999;display:none;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+#global-loader.visible{display:flex}
+#loader-text{font-size:12px;color:var(--text2)}
+.loader-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1s ease-in-out infinite}
+.loader-dot:nth-child(2){animation-delay:.2s}
+.loader-dot:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
 body.light-mode{--bg:#f0f2f7;--bg2:#ffffff;--bg3:#f0f2f7;--bg4:#e4e7ef;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);--text:#1a1d2e;--text2:#5a5c78;--text3:#9294a0;--green:#1ab889;--green-bg:rgba(26,184,137,0.1);--amber:#d4860a;--amber-bg:rgba(212,134,10,0.1);--red:#d63b3b;--red-bg:rgba(214,59,59,0.1);--blue:#3d6fd4;--blue-bg:rgba(61,111,212,0.1);--purple:#7c5cd4;--purple-bg:rgba(124,92,212,0.1);--orange:#d4631a;--orange-bg:rgba(212,99,26,0.1)}
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -247,6 +255,14 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="pin-error" id="pin-error"></div>
     </div>
   </div>
+</div>
+
+<!-- LOADER GLOBAL -->
+<div id="global-loader">
+  <div class="loader-dot"></div>
+  <div class="loader-dot"></div>
+  <div class="loader-dot"></div>
+  <span id="loader-text">Carregando...</span>
 </div>
 
 <!-- APP -->
@@ -585,19 +601,22 @@ const SCRIPT_URL='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2j
 async function sGet(range){
   try{
     const sheet=range.split('!')[0];
+    showLoader('Carregando '+sheet+'...');
     const url='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec?sheet='+encodeURIComponent(sheet);
     const r=await fetch(url);
-    if(!r.ok){console.error('sGet erro',r.status,sheet);return[];}
+    if(!r.ok){console.error('sGet erro',r.status,sheet);hideLoader();return[];}
     const data=await r.json();
     console.log('sGet ok:',sheet,Array.isArray(data)?data.length:'err');
+    hideLoader();
     return Array.isArray(data)?data:[];
-  }catch(e){console.error('sGet exception',e,range);return[];}
+  }catch(e){console.error('sGet exception',e,range);hideLoader();return[];}
 }
 
 
 async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
+    showLoader('Salvando '+sheet+'...');
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
     const payload=JSON.stringify({sheet,rows:values});
     // Enviar em chunks de 3000 chars
@@ -617,7 +636,8 @@ async function sSet(range,values){
       });
     }
     console.log('sSet OK:',sheet,values.length,'linhas');
-  }catch(e){console.error('sSet erro',e);}
+    hideLoader();
+  }catch(e){console.error('sSet erro',e);hideLoader();}
 }
 
 async function sAppend(range,values){
@@ -790,6 +810,8 @@ function switchCfgTab(tab,el){document.querySelectorAll('.tab-btn').forEach(b=>b
 
 // ── HELPERS ──
 function gc(r,i){const k=Object.keys(r);return String(r[k[i]]||'');}
+function showLoader(msg){const el=document.getElementById('global-loader');const txt=document.getElementById('loader-text');if(el){el.classList.add('visible');}if(txt)txt.textContent=msg||'Carregando...';}
+function hideLoader(){const el=document.getElementById('global-loader');if(el)el.classList.remove('visible');}
 function normCPF(v){return String(v||'').replace(/\D/g,'').trim();}
 function parseD(v){if(!v)return null;const s=String(v);const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);const m2=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(m2)return new Date(+m2[3],+m2[2]-1,+m2[1]);const d=new Date(s);return isNaN(d)?null:d;}
 function fmtD(v){const d=parseD(v);return d?d.toLocaleDateString('pt-BR'):'—';}
@@ -858,9 +880,11 @@ function loadFile(inp,tipo){
       } else {
         TITS=raw;
         // Sempre recarregar cedentes e config antes de filtrar para garantir dados frescos
+        showLoader('Lendo arquivo e configurações...');
         if(elLabel)elLabel.textContent='Carregando configurações...';
         await loadCedentesAuto();
         await loadConfig();
+        hideLoader();
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
         _titulosCarregadosLocal=true;
