@@ -891,9 +891,9 @@ function loadFile(inp,tipo){
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
-        // Salvar no Sheets em background (até 20k linhas)
-        if(raw.length<=20000){
-          salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
+        // Salvar elegíveis no Sheets (usa TITS_ELEG filtrado, não o raw completo)
+        if(TITS_ELEG.length<=20000){
+          salvarTitulosPorChunks(TITS_ELEG, currentUser.nome, elLabel);
         } else {
           if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis (sessão)';elLabel.style.color='var(--green)';}
         }
@@ -2340,8 +2340,9 @@ async function loadTitulosSheets(){
       headers.forEach((h,i)=>obj[h]=r[i]||'');
       return obj;
     });
+    // Dados já foram filtrados antes de salvar — usar direto
     TITS=raw;
-    TITS_ELEG=filtrarEleg(raw);
+    TITS_ELEG=raw;
     if(card)card.classList.add('done');
     let subtext=TITS_ELEG.length+' elegiveis';
     if(meta&&meta[0]&&meta[0][0]){
