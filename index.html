@@ -616,7 +616,7 @@ async function sGet(range){
 async function sSet(range,values){
   try{
     const sheet=range.split('!')[0];
-    showLoader('Salvando '+sheet+'...');
+    if(sheet==='TitulosAbertoAR')showLoader('Salvando títulos no Sheets...');
     const GAS='https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec';
     const payload=JSON.stringify({sheet,rows:values});
     // Enviar em chunks de 3000 chars
