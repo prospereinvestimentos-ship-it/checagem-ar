@@ -1157,7 +1157,15 @@ function renderDash(){
   const hist=r=>String(r['HISTORICO']||gc(r,24)).trim().toUpperCase();
 
   // Contagens por nota unica - usa a row representativa de cada nota
-  const notasAFazer=notas.filter(({r})=>conf(r)==='P').length;
+  const notasAFazer=notas.filter(({r,idx})=>{
+    if(conf(r)==='C')return false;
+    if(prazoSt(r)==='vencido')return false;
+    if(_alertMap[idx]?.nivelLimite==='bloqueio')return false;
+    const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+    const reg=getRegra(cpfC);
+    const min=reg?parseFloat(reg.min)||0:DEFAULT_RULES.min;
+    return parseVal(r['VALOR(R$)']||gc(r,18))>=min;
+  }).length;
   const notasFeito=notas.filter(({r})=>conf(r)==='C').length;
   const notasOutros=nNotas-notasAFazer-notasFeito;
   const recompra=notas.filter(({r})=>hist(r)==='REC').length;
@@ -1176,7 +1184,15 @@ function renderDash(){
   const novos=cpfsNovos.size;
 
   // Valores somados por nota unica
-  const valFazer=notas.filter(({r})=>conf(r)==='P').reduce((s,{valorNota})=>s+valorNota,0);
+  const valFazer=notas.filter(({r,idx})=>{
+    if(conf(r)==='C')return false;
+    if(prazoSt(r)==='vencido')return false;
+    if(_alertMap[idx]?.nivelLimite==='bloqueio')return false;
+    const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+    const reg=getRegra(cpfC);
+    const min=reg?parseFloat(reg.min)||0:DEFAULT_RULES.min;
+    return parseVal(r['VALOR(R$)']||gc(r,18))>=min;
+  }).reduce((s,{valorNota})=>s+valorNota,0);
   const valFeito=notas.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
   const valAtraso=notas.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').reduce((s,{valorNota})=>s+valorNota,0);
 
@@ -1233,7 +1249,7 @@ function renderDash(){
 
   document.getElementById('dash-body').innerHTML=`
 <div class="metrics">
-  <div class="met"><div class="met-lbl">A fazer (pendentes)</div><div class="met-val mv-amber">${notasAFazer.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valFazer)}</div><div class="met-sub">${pct(notasAFazer)} das notas</div></div>
+  <div class="met"><div class="met-lbl">A Confirmar</div><div class="met-val mv-amber">${notasAFazer.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valFazer)}</div><div class="met-sub">${pct(notasAFazer)} das notas</div></div>
   <div class="met"><div class="met-lbl">Ja feito (confirmados)</div><div class="met-val mv-green">${notasFeito.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valFeito)}</div><div class="met-sub">${pct(notasFeito)} das notas</div></div>
   <div class="met"><div class="met-lbl">Prazo vencido</div><div class="met-val mv-red">${bloqueios.toLocaleString('pt-BR')}</div><div class="met-val2">${fmtVal(valAtraso)}</div><div class="met-sub">sem checagem no prazo</div></div>
   <div class="met" style="border-color:rgba(245,166,35,0.3)"><div class="met-lbl" style="color:var(--amber)">Limite de valor</div><div class="met-val mv-amber">${limiteBloq.toLocaleString('pt-BR')}</div><div class="met-sub" style="color:var(--amber)">acima do limite</div></div>
@@ -1244,7 +1260,7 @@ function renderDash(){
 <div class="grid2" style="margin-bottom:1.25rem">
   <div class="section" style="margin-bottom:0">
     <div class="section-hdr"><div class="section-title">A fazer x Feito (por nota)</div></div>
-    <div class="section-body">${mkDonut('d1',[notasAFazer,notasFeito,notasOutros],['#f5a623','#2dd4a0','#5a5c68'],['A fazer','Feito','Outros'])}</div>
+    <div class="section-body">${mkDonut('d1',[notasAFazer,notasFeito,notasOutros],['#f5a623','#2dd4a0','#5a5c68'],['A Confirmar','Confirmado','Outros'])}</div>
   </div>
   <div class="section" style="margin-bottom:0">
     <div class="section-hdr"><div class="section-title">Situacao dos prazos (por nota)</div></div>
@@ -1377,18 +1393,30 @@ function renderControladores(){
     const mine=notas.filter(({r})=>getCed(r).controlador===ctrl);
     const tot=mine.length;if(!tot)return'';
     const feito=mine.filter(({r})=>conf(r)==='C').length;
-    const aFazer=mine.filter(({r})=>conf(r)==='P').length;
+    const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
     const venc=mine.filter(({r})=>prazoSt(r)==='vencido').length;
     const alrt=mine.filter(({r})=>prazoSt(r)==='alerta').length;
-    // Cedentes novos — CPFs únicos com isNovo dentro da carteira desse controlador
+    const valVenc=mine.filter(({r})=>prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
+    const valAlrt=mine.filter(({r})=>prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
     const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
     const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
+    // A Confirmar = CONF≠C + dentro das regras (sem prazo vencido e sem limite estourado) + acima do valor mínimo
+    const aConfirmar=mine.filter(({r,idx})=>{
+      if(conf(r)==='C')return false; // já confirmado
+      const ps=prazoSt(r);
+      if(ps==='vencido')return false; // vai para alerta bloqueio
+      if(_alertMap[idx]?.nivelLimite==='bloqueio')return false; // limite estourado
+      const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+      const reg=getRegra(cpfC);
+      const min=reg?parseFloat(reg.min)||0:DEFAULT_RULES.min;
+      const val=parseVal(r['VALOR(R$)']||gc(r,18));
+      if(val<min)return false; // abaixo do mínimo
+      return true;
+    });
+    const aFazer=aConfirmar.length;
+    const valP=aConfirmar.reduce((s,{valorNota})=>s+valorNota,0);
     const pctFeito=(feito+aFazer)?Math.round(feito/(feito+aFazer)*100):0;
-    const valP=mine.filter(({r})=>conf(r)==='P').reduce((s,{valorNota})=>s+valorNota,0);
-    const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
-    const valVenc=mine.filter(({r})=>prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
-    const valAlrt=mine.filter(({r})=>prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
     // Construir mapa de grupos com todas as categorias
     const grpMap={};
     mine.forEach(({r,idx,valorNota})=>{
