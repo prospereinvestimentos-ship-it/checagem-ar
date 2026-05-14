@@ -2327,9 +2327,11 @@ async function loadTitulosSheets(){
       headers.forEach((h,i)=>obj[h]=r[i]||'');
       return obj;
     });
-    // Dados já foram filtrados antes de salvar — usar direto
     TITS=raw;
-    TITS_ELEG=raw;
+    TITS_ELEG=filtrarEleg(raw);
+    console.log('Sheets colunas:',raw.length?Object.keys(raw[0]).slice(0,6):[]);
+    console.log('Sheets CONF amostra:',raw.slice(0,3).map(r=>r['CONF']||'(vazio)'));
+    console.log('Sheets elegíveis:',TITS_ELEG.length,'de',raw.length);
     if(card)card.classList.add('done');
     let subtext=TITS_ELEG.length+' elegiveis';
     if(meta&&meta[0]&&meta[0][0]){
