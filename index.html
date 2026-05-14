@@ -731,8 +731,8 @@ function enterApp(){
   applyPerms();
   Promise.all([loadCedentesAuto()]).then(async ()=>{
     await loadConfig();
-    // Não carrega TitulosAbertoAR do Sheets automaticamente
-    // Usuário faz upload do .xlsx ou dados já estão em memória
+    await loadTitulosSheets();
+    if(TITS_ELEG.length>0)buildAll();
   });
   loadObs();
 }
@@ -862,6 +862,12 @@ function loadFile(inp,tipo){
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
+        // Salvar no Sheets para próximas sessões (só se arquivo for razoável)
+        if(raw.length<=20000){
+          salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
+        } else {
+          if(elLabel)elLabel.textContent=TITS_ELEG.length+' elegíveis (muito grande para salvar)';
+        }
       }
     }catch(err){
       console.error('loadFile erro:',err);
