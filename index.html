@@ -880,6 +880,11 @@ function loadFile(inp,tipo){
       } else {
         TITS=raw;
         TITS_ELEG=filtrarEleg(raw);
+        // Diagnóstico
+        const amostra=TITS_ELEG.slice(0,3);
+        console.log('Total raw:',raw.length,'Elegíveis:',TITS_ELEG.length);
+        console.log('Colunas:',raw.length?Object.keys(raw[0]).slice(0,5):[]);
+        console.log('CONF amostra:',amostra.map(r=>r['CONF']||gc(r,1)));
         document.getElementById('uc-tit2').classList.add('done');
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
