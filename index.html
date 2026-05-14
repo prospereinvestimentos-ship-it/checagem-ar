@@ -1433,6 +1433,37 @@ function renderControladores(){
         <div class="ctrl-prog-lbl"><span>Progresso</span><span>${pctFeito}%</span></div>
         <div class="ctrl-prog-track"><div class="ctrl-prog-fill" style="width:${pctFeito}%"></div></div>
       </div>
+      ${(()=>{
+        // Grupos sem pendência — todos os grupos do controlador com CONF=C ou sem notas P
+        const gruposSemPend={};
+        mine.forEach(({r,valorNota})=>{
+          const grupo=getCed(r).grupo||'Sem grupo';
+          if(!gruposSemPend[grupo])gruposSemPend[grupo]={grupo,notas:0,feito:0,val:0};
+          gruposSemPend[grupo].notas++;
+          gruposSemPend[grupo].val+=valorNota;
+          if(conf(r)==='C')gruposSemPend[grupo].feito++;
+        });
+        // Filtrar só os que não têm nenhuma pendente (todos confirmados)
+        const semPend=Object.values(gruposSemPend)
+          .filter(g=>g.notas>0&&g.feito===g.notas)
+          .sort((a,b)=>b.notas-a.notas);
+        if(!semPend.length)return'';
+        const uid='semP_'+ctrl.replace(/\s/g,'_');
+        const semPendHtml=semPend.map(g=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px">
+            <span style="color:var(--green);flex-shrink:0">✓</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.grupo}</span>
+            <span style="font-size:10px;color:var(--text2)">${g.notas} nota${g.notas>1?'s':''}</span>
+            <span style="font-size:10px;color:var(--text2);font-family:'DM Mono',monospace">${fmtVal(g.val)}</span>
+          </div>`).join('');
+        return`<div class="priority-list" style="border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0;margin-bottom:6px" onclick="toggleGrp('${uid}')">
+            <div class="priority-title" style="margin-bottom:0">Grupos sem pendência <span style="background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:100px;font-size:10px">${semPend.length}</span></div>
+            <span id="${uid}_ico" style="font-size:10px;color:var(--text3)">▶</span>
+          </div>
+          <div id="${uid}" style="display:none;max-height:200px;overflow-y:auto">${semPendHtml}</div>
+        </div>`;
+      })()}
       ${prioridades.length?`<div class="priority-list"><div class="priority-title">Prioridades por grupo</div>${prioridades.map((p,i)=>{
         const uid='grp_'+ctrl.replace(/\s/g,'_')+'_'+p.grupo.replace(/\s/g,'_');
         const notasHtml=p.todasNotas?[...p.todasNotas].sort((a,b)=>b.dias-a.dias).map(n=>`<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;gap:6px"><span style="color:var(--text2);font-family:monospace">${n.doc}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis">${n.sacado}</span><span style="color:${n.vencido?'#f05252':n.emAlerta?'#f5a623':'var(--text2)'}">${n.dias}d</span></div>`).join(''):'';
