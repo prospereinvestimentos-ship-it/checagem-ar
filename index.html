@@ -2434,33 +2434,37 @@ async function handleGoogleLogin(response){
     const email = (payload.email || '').toLowerCase().trim();
     window._googleEmail = email;
     window._googleNome = payload.name || email;
-    // Carregar usuários do Sheets e verificar se email está cadastrado
+    // Verificar email contra cadastro do Sheets
     document.getElementById('google-error').textContent = '';
     const btnWrap = document.getElementById('google-btn-wrap');
-    if(btnWrap) btnWrap.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px">Verificando acesso...</div>';
+    if(btnWrap) btnWrap.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px">Verificando...</div>';
     try{
-      const rows = await sGet('Usuarios!A:E');
-      // rows[0] = cabeçalho, rows[1..] = usuários
+      const rows = await sGet('Usuarios!A:F');
       const emailsAutorizados = rows.slice(1)
         .map(r => String(r[5]||'').toLowerCase().trim())
         .filter(Boolean);
-      // Verificar se email está em algum usuário (coluna F = email Google)
-      // Se coluna email não existir ainda, permitir acesso e avisar
-      const temColEmail = rows[0] && rows[0][5] !== undefined;
-      if(temColEmail && !emailsAutorizados.includes(email)){
-        document.getElementById('google-error').textContent =
-          'Acesso negado: ' + email + ' não está cadastrado no sistema.';
-        if(btnWrap) btnWrap.innerHTML = '';
-        initGoogleAuth();
+      // Se nenhum email cadastrado ainda — deixar entrar e avisar para cadastrar
+      if(emailsAutorizados.length === 0){
+        document.getElementById('google-gate').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+        loadUsers();
         return;
       }
-      // Acesso autorizado
+      // Verificar se email está na lista
+      if(!emailsAutorizados.includes(email)){
+        document.getElementById('google-error').textContent =
+          'Acesso negado: ' + email + ' não está cadastrado.';
+        if(btnWrap) btnWrap.innerHTML = '';
+        setTimeout(()=>initGoogleAuth(), 100);
+        return;
+      }
+      // Autorizado
       document.getElementById('google-gate').style.display = 'none';
       document.getElementById('login-screen').style.display = 'flex';
       loadUsers();
     }catch(e){
       console.error('Erro ao verificar acesso:',e);
-      // Se falhar a verificação, permitir acesso (não bloquear por erro de rede)
+      // Falha de rede — deixar entrar
       document.getElementById('google-gate').style.display = 'none';
       document.getElementById('login-screen').style.display = 'flex';
       loadUsers();
