@@ -739,7 +739,7 @@ function goPage(p,el){
   if(el)el.classList.add('active');
   if(p==='configuracoes')renderCfgPage();
   if(p==='usuarios')renderUsuariosPage();
-  if(p==='controladores'&&TITS_ELEG.length)renderControladores();
+  if(p==='controladores'){if(TITS_ELEG.length)renderControladores();}
   if(p==='alertas'&&TITS_ELEG.length)renderAlertas();
   if(p==='historico'){renderHistorico();}
 }
@@ -818,8 +818,9 @@ function loadFile(inp,tipo){
         document.getElementById('uc-tit2').classList.add('done');
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
-        buildAll();
-        // Não salva no Sheets automaticamente — arquivo grande trava o browser
+        buildAll(); // roda imediatamente na memória
+        // Salva no Sheets em background sem travar a UI
+        salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
       }
     }catch(err){
       console.error('loadFile erro:',err);
@@ -1057,6 +1058,9 @@ function buildAll(){
   renderDash();renderFilters();renderOps();
   document.getElementById('ctrl-empty').style.display='none';
   document.getElementById('ctrl-body').style.display='block';
+  // Se a aba controladores já estiver visível, renderizar agora
+  if(document.getElementById('page-controladores').classList.contains('active'))renderControladores();
+  if(document.getElementById('page-alertas').classList.contains('active'))renderAlertas();
 }
 
 // ── DASHBOARD ──
@@ -2115,6 +2119,23 @@ function toggleGrp(uid){
 
 
 // ── TITULOS NO SHEETS ──
+async function salvarTitulosPorChunks(rows, usuario, elLabel){
+  if(!rows||!rows.length)return;
+  if(elLabel)elLabel.textContent='Salvando no Sheets...';
+  try{
+    const keys=Object.keys(rows[0]);
+    const todasLinhas=[keys,...rows.map(r=>keys.map(k=>r[k]!==undefined?String(r[k]):''))];
+    // sSet já divide internamente em chunks de 8kb via JSONP — mandamos tudo de uma vez
+    await sSet('TitulosAbertoAR!A1', todasLinhas);
+    await sSet('TitulosAbertoAR_Meta!A1',[[usuario,new Date().toISOString(),rows.length+'']]);
+    if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis · salvo ✓';elLabel.style.color='var(--green)';}
+    console.log('TitulosAbertoAR salvo:',rows.length,'linhas');
+  }catch(e){
+    console.error('salvarTitulosPorChunks erro:',e);
+    if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis (erro ao salvar)';elLabel.style.color='var(--amber)';}
+  }
+}
+
 async function salvarTitulosSheets(rows, usuario){
   if(!rows||!rows.length)return;
   const el=document.getElementById('ul-tit2');
