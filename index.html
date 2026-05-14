@@ -866,7 +866,7 @@ function loadFile(inp,tipo){
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
-        salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
+        // Não salva no Sheets — arquivo grande demais, atualizar direto no Sheets quando necessário
       }
     }catch(err){
       console.error('loadFile erro:',err);
