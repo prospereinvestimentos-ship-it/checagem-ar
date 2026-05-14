@@ -753,7 +753,7 @@ function goPage(p,el){
 function switchCfgTab(tab,el){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-c').forEach(c=>c.classList.remove('active'));el.classList.add('active');document.getElementById('ctab-'+tab).classList.add('active');}
 
 // ── HELPERS ──
-function gc(r,i){const k=Object.keys(r);return r[k[i]]||'';}
+function gc(r,i){const k=Object.keys(r);return String(r[k[i]]||'');}
 function normCPF(v){return String(v||'').replace(/\D/g,'').trim();}
 function parseD(v){if(!v)return null;const s=String(v);const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);const m2=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);if(m2)return new Date(+m2[3],+m2[2]-1,+m2[1]);const d=new Date(s);return isNaN(d)?null:d;}
 function fmtD(v){const d=parseD(v);return d?d.toLocaleDateString('pt-BR'):'—';}
@@ -787,7 +787,7 @@ function buildNotasUnicas(rows){
     const cpf=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
     const ci=getCed(r);
     const grupo=ci.grupo||'__sem_grupo__';
-    const base=docBase(r['DOCUMENTO']||gc(r,0));
+    const base=docBase(String(r['DOCUMENTO']||gc(r,0)||''));
     const chave=grupo+'|||'+base;
     if(!mapa[chave]){
       mapa[chave]={r, idx, valorNota:0, parcelas:0};
@@ -1440,7 +1440,7 @@ function renderOps(){
     const h=String(r['HISTORICO']||gc(r,24)).trim();
     const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
     const novo=isNovo(cpfC);
-    const obsKey='tit_'+String(r['DOCUMENTO']||gc(r,0)).replace(/\s/g,'_');
+    const obsKey='tit_'+String(r['DOCUMENTO']||gc(r,0)||'').replace(/\s/g,'_');
     const obsCount=OBSERVACOES[obsKey]?OBSERVACOES[obsKey].length:0;
     return`<tr class="${a.nivel==='bloqueio'?'row-alert':''}">
       <td>${novo?'<span style="color:#a78bfa;font-size:14px">★</span>':'—'}</td>
@@ -1455,7 +1455,7 @@ function renderOps(){
       <td title="${ci.grupo}">${ci.grupo||'—'}</td>
       <td><span class="badge ${PC[ps]}">${PL[ps]}</span></td>
       <td>${a.alertas.length?`<span class="badge br" title="${a.alertas.join(' | ')}">⚠ ${a.alertas.length}</span>`:'<span class="badge bg">✓</span>'}</td>
-      <td><button class="obs-btn" onclick="openObs('${obsKey}','${(r['DOCUMENTO']||gc(r,0)).replace(/'/g,'')}')">${obsCount?'💬 '+obsCount:'+'} obs</button></td>
+      <td><button class="obs-btn" onclick="openObs('${obsKey}','${String(r['DOCUMENTO']||gc(r,0)||'').replace(/'/g,'')}')">${obsCount?'💬 '+obsCount:'+'} obs</button></td>
     </tr>`;
   }).join('')||'<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text2)">Nenhum registro</td></tr>';
   document.getElementById('ops-cnt').style.display='block';
