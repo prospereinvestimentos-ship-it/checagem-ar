@@ -739,7 +739,14 @@ function goPage(p,el){
   if(el)el.classList.add('active');
   if(p==='configuracoes')renderCfgPage();
   if(p==='usuarios')renderUsuariosPage();
-  if(p==='controladores'){if(TITS_ELEG.length)renderControladores();}
+  if(p==='controladores'){
+    if(TITS_ELEG.length)renderControladores();
+    else{
+      document.getElementById('ctrl-empty').textContent='Carregando dados...';
+      document.getElementById('ctrl-empty').style.display='block';
+      document.getElementById('ctrl-body').style.display='none';
+    }
+  }
   if(p==='alertas'&&TITS_ELEG.length)renderAlertas();
   if(p==='historico'){renderHistorico();}
 }
@@ -1244,6 +1251,11 @@ function filterCedFora(){
 
 // ── CONTROLADORES ──
 function renderControladores(){
+  // Se _NOTAS_UNICAS estiver vazio mas TITS_ELEG tiver dados, reconstruir
+  if(!Object.keys(_NOTAS_UNICAS).length&&TITS_ELEG.length){
+    _alertMap=calcAlertMap();
+    _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
+  }
   const notas=Object.values(_NOTAS_UNICAS);
   if(!notas.length){document.getElementById('ctrl-body').innerHTML='<div class="empty">Carregue as planilhas primeiro</div>';return;}
   const conf=r=>String(r['CONF']||gc(r,1)).trim().toUpperCase();
