@@ -879,18 +879,19 @@ function loadFile(inp,tipo){
         buildAll();
       } else {
         TITS=raw;
-        // Sempre recarregar cedentes e config antes de filtrar para garantir dados frescos
-        showLoader('Lendo arquivo e configurações...');
-        if(elLabel)elLabel.textContent='Carregando configurações...';
-        await loadCedentesAuto();
-        await loadConfig();
-        hideLoader();
+        // Só recarregar cedentes se ainda não estiverem carregados
+        if(!Object.keys(CEDS).length){
+          showLoader('Carregando cedentes...');
+          await loadCedentesAuto();
+          await loadConfig();
+          hideLoader();
+        }
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
         buildAll();
-        // Só salva no Sheets se o arquivo tiver até 20k linhas — evita travar com arquivos grandes
+        // Salvar no Sheets em background (até 20k linhas)
         if(raw.length<=20000){
           salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
         } else {
