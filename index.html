@@ -857,12 +857,17 @@ function loadFile(inp,tipo){
         buildAll();
       } else {
         TITS=raw;
+        // Se cedentes ainda não carregaram, aguardar antes de filtrar
+        if(!Object.keys(CEDS).length){
+          if(elLabel)elLabel.textContent='Aguardando cedentes...';
+          await loadCedentesAuto();
+          await loadConfig();
+        }
         TITS_ELEG=filtrarEleg(raw);
         document.getElementById('uc-tit2').classList.add('done');
         _titulosCarregadosLocal=true;
         if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
-        buildAll(); // roda imediatamente na memória
-        // Salva no Sheets em background sem travar a UI
+        buildAll();
         salvarTitulosPorChunks(raw, currentUser.nome, elLabel);
       }
     }catch(err){
