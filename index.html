@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Checagem AR</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{--bg:#0f1117;--bg2:#161820;--bg3:#1e2028;--bg4:#252730;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--text:#e8e9f0;--text2:#9294a0;--text3:#5a5c68;--green:#2dd4a0;--green-bg:rgba(45,212,160,0.1);--amber:#f5a623;--amber-bg:rgba(245,166,35,0.1);--red:#f05252;--red-bg:rgba(240,82,82,0.1);--blue:#5b8af5;--blue-bg:rgba(91,138,245,0.1);--purple:#a78bfa;--purple-bg:rgba(167,139,250,0.1);--orange:#fb923c;--orange-bg:rgba(251,146,60,0.1);--yellow:#fbbf24;--yellow-bg:rgba(251,191,36,0.1);--radius:10px;--radius-sm:6px}
 body.light-mode{--bg:#f0f2f7;--bg2:#ffffff;--bg3:#f0f2f7;--bg4:#e4e7ef;--border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.15);--text:#1a1d2e;--text2:#5a5c78;--text3:#9294a0;--green:#1ab889;--green-bg:rgba(26,184,137,0.1);--amber:#d4860a;--amber-bg:rgba(212,134,10,0.1);--red:#d63b3b;--red-bg:rgba(214,59,59,0.1);--blue:#3d6fd4;--blue-bg:rgba(61,111,212,0.1);--purple:#7c5cd4;--purple-bg:rgba(124,92,212,0.1);--orange:#d4631a;--orange-bg:rgba(212,99,26,0.1)}
@@ -233,18 +232,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
 <body>
 
 <!-- LOGIN -->
-<!-- GOOGLE AUTH GATE -->
-<div id="google-gate" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:20px">
-  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:2.5rem;width:340px;text-align:center">
-    <div style="width:48px;height:48px;background:var(--green-bg);border:1px solid rgba(45,212,160,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;font-size:22px">📋</div>
-    <div style="font-size:18px;font-weight:600;margin-bottom:6px">Checagem AR</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:1.75rem">Acesso restrito — entre com sua conta Google autorizada</div>
-    <div id="google-btn-wrap" style="display:flex;justify-content:center;margin-bottom:1rem"></div>
-    <div id="google-error" style="font-size:12px;color:var(--red);min-height:18px"></div>
-  </div>
-</div>
-
-<div id="login-screen" style="display:none">
+<div id="login-screen">
   <div class="login-card">
     <div class="login-logo">📋</div>
     <div class="login-title">Checagem AR</div>
@@ -777,21 +765,7 @@ function applyPerms(){
   if(btnRegistrar)btnRegistrar.style.display=isConsulta?'none':'';
   if(btnLembrete)btnLembrete.style.display=isConsulta?'none':'';
 }
-function logout(){
-  currentUser=null;pinBuffer='';
-  document.getElementById('app').style.display='none';
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('google-gate').style.display='flex';
-  // Revogar sessão Google para forçar re-login
-  if(typeof google!=='undefined'&&window._googleEmail){
-    google.accounts.id.revoke(window._googleEmail,()=>{});
-  }
-  window._googleEmail=null;
-  document.querySelectorAll('.user-btn').forEach(b=>b.classList.remove('selected'));
-  document.getElementById('pin-area').style.display='none';
-  // Re-renderizar botão
-  setTimeout(()=>initGoogleAuth(),200);
-}
+function logout(){currentUser=null;pinBuffer='';document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.querySelectorAll('.user-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('pin-area').style.display='none';}
 
 // ── NAVEGAÇÃO ──
 function goPage(p,el){
@@ -2401,94 +2375,7 @@ function addRegraRow(){
 }
 
 // INIT
-// ── GOOGLE OAUTH ──
-const GOOGLE_CLIENT_ID = '740410266137-56l93k7ku71me3bijdgmouom8bo9u03a.apps.googleusercontent.com';
-// Emails autorizados vêm da aba Usuarios do Sheets — gerenciado em Configurações > Usuários
 
-function initGoogleAuth(){
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleLogin,
-    auto_select: false,
-    cancel_on_tap_outside: false,
-  });
-  google.accounts.id.renderButton(
-    document.getElementById('google-btn-wrap'),
-    {
-      theme: 'filled_black',
-      size: 'large',
-      text: 'signin_with',
-      shape: 'rectangular',
-      logo_alignment: 'left',
-      width: 260,
-    }
-  );
-  // Tentar login silencioso se já estiver autenticado
-  google.accounts.id.prompt();
-}
-
-async function handleGoogleLogin(response){
-  try{
-    // Decodificar JWT do Google (sem verificação de assinatura — só leitura do payload)
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    const email = (payload.email || '').toLowerCase().trim();
-    window._googleEmail = email;
-    window._googleNome = payload.name || email;
-    // Verificar email contra cadastro do Sheets
-    document.getElementById('google-error').textContent = '';
-    const btnWrap = document.getElementById('google-btn-wrap');
-    if(btnWrap) btnWrap.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:8px">Verificando...</div>';
-    try{
-      const rows = await sGet('Usuarios!A:F');
-      const emailsAutorizados = rows.slice(1)
-        .map(r => String(r[5]||'').toLowerCase().trim())
-        .filter(Boolean);
-      // Se nenhum email cadastrado ainda — deixar entrar e avisar para cadastrar
-      if(emailsAutorizados.length === 0){
-        document.getElementById('google-gate').style.display = 'none';
-        document.getElementById('login-screen').style.display = 'flex';
-        loadUsers();
-        return;
-      }
-      // Verificar se email está na lista
-      if(!emailsAutorizados.includes(email)){
-        document.getElementById('google-error').textContent =
-          'Acesso negado: ' + email + ' não está cadastrado.';
-        if(btnWrap) btnWrap.innerHTML = '';
-        setTimeout(()=>initGoogleAuth(), 100);
-        return;
-      }
-      // Autorizado
-      document.getElementById('google-gate').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'flex';
-      loadUsers();
-    }catch(e){
-      console.error('Erro ao verificar acesso:',e);
-      // Falha de rede — deixar entrar
-      document.getElementById('google-gate').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'flex';
-      loadUsers();
-    }
-  }catch(e){
-    console.error('handleGoogleLogin erro:',e);
-    document.getElementById('google-error').textContent = 'Erro ao verificar login. Tente novamente.';
-  }
-}
-
-// Inicializar quando GSI carregar
-window.addEventListener('load', ()=>{
-  if(typeof google !== 'undefined'){
-    initGoogleAuth();
-  } else {
-    // Aguardar o script GSI carregar
-    const t = setInterval(()=>{
-      if(typeof google !== 'undefined'){
-        clearInterval(t);
-        initGoogleAuth();
-      }
-    }, 200);
-  }
-});
 </script>
 </body>
 </html>
