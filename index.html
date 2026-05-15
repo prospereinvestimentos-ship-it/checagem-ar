@@ -1477,8 +1477,8 @@ function renderControladores(){
         <div><div class="ctrl-name">${ctrl}</div><div class="ctrl-sub">${tot.toLocaleString('pt-BR')} notas na carteira</div></div>
       </div>
       <div class="ctrl-metrics">
-        <div class="ctrl-met"><div class="ctrl-met-lbl">A Confirmar</div><div class="ctrl-met-val mv-amber">${aFazer.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valP)}</div></div>
-        <div class="ctrl-met"><div class="ctrl-met-lbl">Confirmado</div><div class="ctrl-met-val mv-green">${feito.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valF)}</div></div>
+        <div class="ctrl-met"><div class="ctrl-met-lbl">A Confirmar</div><div class="ctrl-met-val mv-amber">${aFazer.toLocaleString('pt-BR')}</div></div>
+        <div class="ctrl-met"><div class="ctrl-met-lbl">Confirmado</div><div class="ctrl-met-val mv-green">${feito.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${pctFeito}% concluído</div></div>
         <div class="ctrl-met"><div class="ctrl-met-lbl">Alerta bloqueio</div><div class="ctrl-met-val mv-red">${bloq.toLocaleString('pt-BR')}</div></div>
         <div class="ctrl-met"><div class="ctrl-met-lbl">Prazo vencido</div><div class="ctrl-met-val mv-red">${venc.toLocaleString('pt-BR')}</div><div class="ctrl-met-sub">${fmtVal(valVenc)}</div></div>
         ${novos?`<div class="ctrl-met"><div class="ctrl-met-lbl">Cedentes novos</div><div class="ctrl-met-val mv-purple">${novos}</div></div>`:''}
