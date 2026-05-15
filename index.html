@@ -1414,17 +1414,17 @@ function renderControladores(){
       const cf=conf(r);
       const vencido=cf==='P'&&prazoSt(r)==='vencido';
       const emAlerta=cf==='P'&&prazoSt(r)==='alerta';
-      if(!grpMap[grupo])grpMap[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,notasVenc:[],notasAlerta:[],notasNovo:[],notasDentroPrazo:[],feito:0,valFeito:0};
+      if(!grpMap[grupo])grpMap[grupo]={grupo,notas:0,val:0,maxDias:0,novo:false,notasVenc:[],notasAlerta:[],notasNovo:[],notasDentroPrazo:[],feito:0,valFeito:0,valVenc:0,valAlerta:0,valNovo:0,valDentro:0};
       grpMap[grupo].notas++;
       grpMap[grupo].val+=valorNota;
       if(dias>grpMap[grupo].maxDias)grpMap[grupo].maxDias=dias;
       if(novo)grpMap[grupo].novo=true;
       if(cf==='C'){grpMap[grupo].feito++;grpMap[grupo].valFeito+=valorNota;}
-      if(vencido)grpMap[grupo].notasVenc.push({doc,sacado,dias});
-      if(emAlerta)grpMap[grupo].notasAlerta.push({doc,sacado,dias});
-      if(cf==='P'&&novo)grpMap[grupo].notasNovo.push({doc,sacado,dias});
+      if(vencido){grpMap[grupo].notasVenc.push({doc,sacado,dias,val:valorNota});grpMap[grupo].valVenc+=valorNota;}
+      if(emAlerta){grpMap[grupo].notasAlerta.push({doc,sacado,dias,val:valorNota});grpMap[grupo].valAlerta+=valorNota;}
       const ps=prazoSt(r);
-      if(cf!=='C'&&!vencido&&!emAlerta&&!novo&&(ps==='ok'||ps==='sem'))grpMap[grupo].notasDentroPrazo.push({doc,sacado,dias});
+      if(cf==='P'&&novo&&!vencido&&!emAlerta){grpMap[grupo].notasNovo.push({doc,sacado,dias,val:valorNota});grpMap[grupo].valNovo+=valorNota;}
+      if(cf!=='C'&&!vencido&&!emAlerta&&!novo&&(ps==='ok'||ps==='sem')){grpMap[grupo].notasDentroPrazo.push({doc,sacado,dias,val:valorNota});grpMap[grupo].valDentro+=valorNota;}
     });
     const todosGrps=Object.values(grpMap);
     const grpsVenc=todosGrps.filter(g=>g.notasVenc.length).sort((a,b)=>b.maxDias-a.maxDias);
@@ -1443,17 +1443,18 @@ function renderControladores(){
     }
 
     // Função para renderizar seção com cedentes expansíveis
-    function mkSecao(titulo,cor,badge,grupos,getNtas,corDia){
+    function mkSecao(titulo,cor,badge,grupos,getNtas,corDia,getVal){
       if(!grupos.length)return'';
       const uid='sec_'+ctrl.replace(/\s/g,'_')+'_'+titulo.replace(/\s/g,'_');
       const cedHtml=grupos.map(g=>{
         const notas=getNtas(g);
+        const val=getVal?getVal(g):notas.reduce((s,n)=>s+(n.val||0),0);
         const uid2=uid+'_'+g.grupo.replace(/[^a-zA-Z0-9]/g,'_');
         return`<div style="margin-bottom:4px;background:var(--bg3);border-radius:4px;overflow:hidden">
           <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer" onclick="toggleGrp('${uid2}')">
             <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.grupo}</span>
             <span style="font-size:10px;color:var(--text2)">${notas.length} nota${notas.length>1?'s':''}</span>
-            <span style="font-size:10px;color:var(--text2);font-family:'DM Mono',monospace">${fmtVal(g.val)}</span>
+            <span style="font-size:10px;color:var(--text2);font-family:'DM Mono',monospace">${fmtVal(val)}</span>
             <span id="${uid2}_ico" style="font-size:10px;color:var(--text3)">▶</span>
           </div>
           <div id="${uid2}" style="display:none;padding:0 8px 6px">${mkNotasGrp(notas,corDia)}</div>
@@ -1490,11 +1491,11 @@ function renderControladores(){
         if(!temAlgo)return'';
         return`<div class="priority-list">
           <div class="priority-title">Grupos por situação</div>
-          ${mkSecao('🔴 Prazo vencido','#f05252',grpsVenc.length+' grupo'+(grpsVenc.length>1?'s':''),grpsVenc,g=>g.notasVenc,'#f05252')}
-          ${mkSecao('🟡 Em alerta','#f5a623',grpsAlerta.length+' grupo'+(grpsAlerta.length>1?'s':''),grpsAlerta,g=>g.notasAlerta,'#f5a623')}
-          ${mkSecao('🟣 Cedentes novos','#a78bfa',grpsNovo.length+' grupo'+(grpsNovo.length>1?'s':''),grpsNovo,g=>g.notasNovo,'#a78bfa')}
-          ${mkSecao('⚪ Dentro do prazo','#9294a0',grpsDentroPrazo.length+' grupo'+(grpsDentroPrazo.length>1?'s':''),grpsDentroPrazo,g=>g.notasDentroPrazo,'var(--text2)')}
-          ${mkSecao('✅ Confirmados','#2dd4a0',grpsSemPend.length+' grupo'+(grpsSemPend.length>1?'s':''),grpsSemPend,g=>[{doc:'—',sacado:g.feito+' notas confirmadas',dias:0}],'#2dd4a0')}
+          ${mkSecao('🔴 Prazo vencido','#f05252',grpsVenc.length+' grupo'+(grpsVenc.length>1?'s':''),grpsVenc,g=>g.notasVenc,'#f05252',g=>g.valVenc)}
+          ${mkSecao('🟡 Em alerta','#f5a623',grpsAlerta.length+' grupo'+(grpsAlerta.length>1?'s':''),grpsAlerta,g=>g.notasAlerta,'#f5a623',g=>g.valAlerta)}
+          ${mkSecao('🟣 Cedentes novos','#a78bfa',grpsNovo.length+' grupo'+(grpsNovo.length>1?'s':''),grpsNovo,g=>g.notasNovo,'#a78bfa',g=>g.valNovo)}
+          ${mkSecao('⚪ Dentro do prazo','#9294a0',grpsDentroPrazo.length+' grupo'+(grpsDentroPrazo.length>1?'s':''),grpsDentroPrazo,g=>g.notasDentroPrazo,'var(--text2)',g=>g.valDentro)}
+          ${mkSecao('✅ Confirmados','#2dd4a0',grpsSemPend.length+' grupo'+(grpsSemPend.length>1?'s':''),grpsSemPend,g=>[{doc:'—',sacado:g.feito+' notas confirmadas',dias:0}],'#2dd4a0',g=>g.valFeito)}
         </div>`;
       })()}
     </div>`;
