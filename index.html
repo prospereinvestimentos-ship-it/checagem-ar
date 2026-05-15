@@ -292,6 +292,9 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="nav-item" onclick="goPage('historico',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Histórico
       </div>
+      <div class="nav-item" onclick="goPage('carteira',this)">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>Carteira
+      </div>
     </div>
     <div class="nav-sec" id="nav-cfg-sec">
       <div class="nav-lbl">Configurações</div>
@@ -380,6 +383,31 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="page-header"><div><div class="page-title">Alertas de bloqueio</div><div class="page-sub">Operações que violam as regras configuradas</div></div></div>
       <div id="alertas-empty" class="empty">Carregue as planilhas primeiro</div>
       <div id="alertas-body" style="display:none"></div>
+    </div>
+
+    <!-- CARTEIRA -->
+    <div class="page" id="page-carteira">
+      <div class="page-header">
+        <div><div class="page-title">Carteira completa</div><div class="page-sub">Visão geral por grupo com todas as dimensões</div></div>
+      </div>
+      <div id="carteira-empty" class="empty">Carregue as planilhas primeiro</div>
+      <div id="carteira-body" style="display:none">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <select id="cart-ctrl" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os controladores</option></select>
+          <select id="cart-grp" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os grupos</option></select>
+          <select id="cart-conf" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
+            <option value="">Todos (CONF)</option>
+            <option value="C">C — Confirmado</option>
+            <option value="P">P — Pendente</option>
+          </select>
+          <select id="cart-cr" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os CRs</option></select>
+          <select id="cart-tipo" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os tipos</option></select>
+          <select id="cart-motivo" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os motivos</option></select>
+          <button onclick="limparFiltrosCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;color:var(--text2);cursor:pointer">✕ Limpar</button>
+          <span id="cart-info" style="font-size:11px;color:var(--text2);margin-left:auto"></span>
+        </div>
+        <div id="cart-content"></div>
+      </div>
     </div>
 
     <!-- HISTÓRICO -->
@@ -803,6 +831,7 @@ function goPage(p,el){
   }
   if(p==='alertas'&&TITS_ELEG.length)renderAlertas();
   if(p==='historico'){renderHistorico();}
+  if(p==='carteira'&&TITS_ELEG.length)renderCarteira();
 }
 function switchCfgTab(tab,el){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-c').forEach(c=>c.classList.remove('active'));el.classList.add('active');document.getElementById('ctab-'+tab).classList.add('active');}
 
@@ -1120,6 +1149,7 @@ function buildAll(){
   // Se a aba controladores já estiver visível, renderizar agora
   if(document.getElementById('page-controladores').classList.contains('active'))renderControladores();
   if(document.getElementById('page-alertas').classList.contains('active'))renderAlertas();
+  if(document.getElementById('page-carteira')?.classList.contains('active'))renderCarteira();
 }
 
 // ── DASHBOARD ──
@@ -1791,6 +1821,128 @@ function buildColunaRecompra(viols){
       <div id="${uidM}" style="display:none;padding:0 8px 8px">${grpHtml}</div>
     </div>`;
   }).join('');
+}
+
+// ── CARTEIRA COMPLETA ──
+const CR_LABELS={'P':'Operação Padrão','T':'Tranche','C':'Comissária','BG':'Boleto Garantido (Trustee)','CL':'Clean','CE':'Comissária c/ Escrow','I':'Intercompany','BA':'Barter','EB':'Boleto Especial','BT':'Boleto Esp. + Tranche'};
+
+function renderCarteira(){
+  const body=document.getElementById('carteira-body');
+  const empty=document.getElementById('carteira-empty');
+  if(!TITS_ELEG.length){if(empty)empty.style.display='block';if(body)body.style.display='none';return;}
+  if(empty)empty.style.display='none';
+  if(body)body.style.display='block';
+
+  // Popular filtros
+  const ctrls=[...new Set(TITS_ELEG.map(r=>getCed(r).controlador).filter(Boolean))].sort();
+  const grps=[...new Set(TITS_ELEG.map(r=>getCed(r).grupo).filter(Boolean))].sort();
+  const crs=[...new Set(TITS_ELEG.map(r=>String(r['CR']||gc(r,2)).trim().toUpperCase()).filter(Boolean))].sort();
+  const tipos=[...new Set(TITS_ELEG.map(r=>String(r['TIPO']||gc(r,4)).trim().toUpperCase()).filter(Boolean))].sort();
+  const motivos=[...new Set(TITS_ELEG.map(r=>String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim()).filter(Boolean))].sort();
+
+  const selCtrl=document.getElementById('cart-ctrl');
+  const selGrp=document.getElementById('cart-grp');
+  const selCr=document.getElementById('cart-cr');
+  const selTipo=document.getElementById('cart-tipo');
+  const selMotivo=document.getElementById('cart-motivo');
+
+  if(selCtrl&&selCtrl.options.length<=1) ctrls.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;selCtrl.appendChild(o);});
+  if(selGrp&&selGrp.options.length<=1) grps.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;selGrp.appendChild(o);});
+  if(selCr&&selCr.options.length<=1) crs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c+' — '+(CR_LABELS[c]||c);selCr.appendChild(o);});
+  if(selTipo&&selTipo.options.length<=1) tipos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;selTipo.appendChild(o);});
+  if(selMotivo&&selMotivo.options.length<=1) motivos.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;selMotivo.appendChild(o);});
+
+  // Filtros ativos
+  const fCtrl=selCtrl?.value||'';
+  const fGrp=selGrp?.value||'';
+  const fConf=document.getElementById('cart-conf')?.value||'';
+  const fCr=selCr?.value||'';
+  const fTipo=selTipo?.value||'';
+  const fMotivo=selMotivo?.value||'';
+
+  const filtrado=TITS_ELEG.filter(r=>{
+    const ci=getCed(r);
+    if(fCtrl&&ci.controlador!==fCtrl)return false;
+    if(fGrp&&ci.grupo!==fGrp)return false;
+    if(fConf&&String(r['CONF']||gc(r,1)).trim().toUpperCase()!==fConf)return false;
+    if(fCr&&String(r['CR']||gc(r,2)).trim().toUpperCase()!==fCr)return false;
+    if(fTipo&&String(r['TIPO']||gc(r,4)).trim().toUpperCase()!==fTipo)return false;
+    if(fMotivo&&String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim()!==fMotivo)return false;
+    return true;
+  });
+
+  // Totais
+  const totQtd=filtrado.length;
+  const totVal=filtrado.reduce((s,r)=>s+parseVal(r['VALOR(R$)']||gc(r,18)),0);
+  const info=document.getElementById('cart-info');
+  if(info)info.textContent=totQtd.toLocaleString('pt-BR')+' notas · '+fmtVal(totVal);
+
+  // Agrupar por grupo econômico
+  const porGrp={};
+  filtrado.forEach(r=>{
+    const ci=getCed(r);
+    const grp=ci.grupo||'Sem grupo';
+    const conf=String(r['CONF']||gc(r,1)).trim().toUpperCase();
+    const cr=String(r['CR']||gc(r,2)).trim().toUpperCase();
+    const tipo=String(r['TIPO']||gc(r,4)).trim().toUpperCase();
+    const motivo=String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim();
+    const val=parseVal(r['VALOR(R$)']||gc(r,18));
+    if(!porGrp[grp])porGrp[grp]={grp,ctrl:ci.controlador||'—',qtd:0,val:0,conf:{},cr:{},tipo:{},motivos:{}};
+    const g=porGrp[grp];
+    g.qtd++;g.val+=val;
+    if(!g.conf[conf])g.conf[conf]={qtd:0,val:0};g.conf[conf].qtd++;g.conf[conf].val+=val;
+    if(!g.cr[cr])g.cr[cr]={qtd:0,val:0};g.cr[cr].qtd++;g.cr[cr].val+=val;
+    if(!g.tipo[tipo])g.tipo[tipo]={qtd:0,val:0};g.tipo[tipo].qtd++;g.tipo[tipo].val+=val;
+    if(motivo){if(!g.motivos[motivo])g.motivos[motivo]={qtd:0,val:0};g.motivos[motivo].qtd++;g.motivos[motivo].val+=val;}
+  });
+
+  const grpsSorted=Object.values(porGrp).sort((a,b)=>b.val-a.val);
+
+  function mkDim(titulo,map,cor){
+    const entries=Object.entries(map).sort((a,b)=>b[1].val-a[1].val);
+    if(!entries.length)return'';
+    return`<div style="margin-bottom:6px">
+      <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">${titulo}</div>
+      ${entries.map(([k,v])=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
+        <span style="background:${cor}22;color:${cor};padding:1px 6px;border-radius:100px;font-size:10px;flex-shrink:0">${k}</span>
+        <span style="color:var(--text2);font-size:10px;flex:1">${k==='C'?'Confirmado':k==='P'?'Pendente':CR_LABELS[k]||k}</span>
+        <span style="font-weight:500">${v.qtd}</span>
+        <span style="color:var(--text2);font-family:'DM Mono',monospace;font-size:10px">${fmtVal(v.val)}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('cart-content').innerHTML=grpsSorted.length?`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">
+      ${grpsSorted.map(g=>{
+        const uid='cart_'+g.grp.replace(/[^a-zA-Z0-9]/g,'_');
+        return`<div class="section" style="margin-bottom:0">
+          <div class="section-hdr" style="cursor:pointer" onclick="toggleGrp('${uid}')">
+            <div>
+              <div class="section-title">${g.grp}</div>
+              <div style="font-size:11px;color:var(--text2)">${g.ctrl} · ${g.qtd.toLocaleString('pt-BR')} notas</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:500">${fmtVal(g.val)}</span>
+              <span id="${uid}_ico" style="font-size:12px;color:var(--text3)">▶</span>
+            </div>
+          </div>
+          <div id="${uid}" style="display:none;padding:.75rem">
+            ${mkDim('CONF (situação)',g.conf,g.conf['C']&&!g.conf['P']?'#2dd4a0':'#f5a623')}
+            ${mkDim('CR (tipo de operação)',g.cr,'#5b8af5')}
+            ${mkDim('Tipo de título',g.tipo,'#a78bfa')}
+            ${Object.keys(g.motivos).length?mkDim('Motivo de recompra',g.motivos,'#fb923c'):''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`:'<div class="empty">Nenhum resultado para os filtros selecionados</div>';
+}
+
+function limparFiltrosCarteira(){
+  ['cart-ctrl','cart-grp','cart-conf','cart-cr','cart-tipo','cart-motivo'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  renderCarteira();
 }
 
 // ── HISTÓRICO ──
