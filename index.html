@@ -279,6 +279,9 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="nav-item active" onclick="goPage('dashboard',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard
       </div>
+      <div class="nav-item" onclick="goPage('carteira',this)">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>Carteira
+      </div>
       <div class="nav-item" onclick="goPage('controladores',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Por controlador
       </div>
@@ -291,9 +294,6 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       </div>
       <div class="nav-item" onclick="goPage('historico',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Histórico
-      </div>
-      <div class="nav-item" onclick="goPage('carteira',this)">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/></svg>Carteira
       </div>
     </div>
     <div class="nav-sec" id="nav-cfg-sec">
@@ -1824,7 +1824,8 @@ function buildColunaRecompra(viols){
 }
 
 // ── CARTEIRA COMPLETA ──
-const CR_LABELS={'P':'Operação Padrão','T':'Tranche','C':'Comissária','BG':'Boleto Garantido (Trustee)','CL':'Clean','CE':'Comissária c/ Escrow','I':'Intercompany','BA':'Barter','EB':'Boleto Especial','BT':'Boleto Esp. + Tranche'};
+const CR_LABELS={'P':'Operação Padrão','T':'Operação em Tranche','C':'Operação Comissária','BG':'Boleto Garantido','CL':'Operação Clean','CE':'Comissária c/ Escrow','I':'Intercompany','BA':'Barter','EB':'Boleto Especial','B':'Boleto Especial + Tranche'};
+const CR_CORES={'P':'#5b8af5','T':'#2dd4a0','C':'#f5a623','BG':'#f05252','CL':'#a78bfa','CE':'#fb923c','I':'#fbbf24','BA':'#9294a0','EB':'#5b8af5','B':'#2dd4a0','OUT':'#5a5c68'};
 
 function renderCarteira(){
   const body=document.getElementById('carteira-body');
@@ -1887,21 +1888,61 @@ function renderCarteira(){
     const tipo=String(r['TIPO']||gc(r,4)).trim().toUpperCase();
     const motivo=String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim();
     const val=parseVal(r['VALOR(R$)']||gc(r,18));
-    if(!porGrp[grp])porGrp[grp]={grp,ctrl:ci.controlador||'—',qtd:0,val:0,conf:{},cr:{},tipo:{},motivos:{}};
+    if(!porGrp[grp])porGrp[grp]={grp,ctrl:ci.controlador||'—',qtd:0,val:0,conf:{},cr:{},confByCR:{},tipo:{},motivos:{}};
     const g=porGrp[grp];
     g.qtd++;g.val+=val;
     if(!g.conf[conf])g.conf[conf]={qtd:0,val:0};g.conf[conf].qtd++;g.conf[conf].val+=val;
     if(!g.cr[cr])g.cr[cr]={qtd:0,val:0};g.cr[cr].qtd++;g.cr[cr].val+=val;
+    // Split C/P por CR
+    if(!g.confByCR[cr])g.confByCR[cr]={};
+    if(!g.confByCR[cr][conf])g.confByCR[cr][conf]={qtd:0,val:0};
+    g.confByCR[cr][conf].qtd++;g.confByCR[cr][conf].val+=val;
     if(!g.tipo[tipo])g.tipo[tipo]={qtd:0,val:0};g.tipo[tipo].qtd++;g.tipo[tipo].val+=val;
     if(motivo){if(!g.motivos[motivo])g.motivos[motivo]={qtd:0,val:0};g.motivos[motivo].qtd++;g.motivos[motivo].val+=val;}
   });
 
   const grpsSorted=Object.values(porGrp).sort((a,b)=>b.val-a.val);
 
+  // Renderiza seção CR com badges coloridos e split C/P por tipo
+  function mkCRSection(crMap,confByCR){
+    const entries=Object.entries(crMap).sort((a,b)=>b[1].val-a[1].val);
+    if(!entries.length)return'';
+    return`<div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Tipo de operação (CR)</div>
+      ${entries.map(([cr,v])=>{
+        const cor=CR_CORES[cr]||'#9294a0';
+        const label=CR_LABELS[cr]||cr;
+        const cpData=confByCR[cr]||{};
+        const conf=cpData['C']||{qtd:0,val:0};
+        const pend=cpData['P']||{qtd:0,val:0};
+        return`<div style="background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;border-left:3px solid ${cor}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <span style="background:${cor};color:white;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700;flex-shrink:0">${cr}</span>
+            <span style="font-size:11px;font-weight:500;flex:1">${label}</span>
+            <span style="font-size:11px;font-weight:600">${v.qtd} notas</span>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text2)">${fmtVal(v.val)}</span>
+          </div>
+          <div style="display:flex;gap:10px">
+            ${conf.qtd?`<div style="display:flex;align-items:center;gap:4px;font-size:10px">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
+              <span style="color:var(--green);font-weight:500">${conf.qtd} confirmado${conf.qtd>1?'s':''}</span>
+              <span style="color:var(--text2)">${fmtVal(conf.val)}</span>
+            </div>`:''}
+            ${pend.qtd?`<div style="display:flex;align-items:center;gap:4px;font-size:10px">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>
+              <span style="color:var(--amber);font-weight:500">${pend.qtd} pendente${pend.qtd>1?'s':''}</span>
+              <span style="color:var(--text2)">${fmtVal(pend.val)}</span>
+            </div>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   function mkDim(titulo,map,cor){
     const entries=Object.entries(map).sort((a,b)=>b[1].val-a[1].val);
     if(!entries.length)return'';
-    return`<div style="margin-bottom:6px">
+    return`<div style="margin-bottom:8px">
       <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">${titulo}</div>
       ${entries.map(([k,v])=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
         <span style="background:${cor}22;color:${cor};padding:1px 6px;border-radius:100px;font-size:10px;flex-shrink:0">${k}</span>
@@ -1929,7 +1970,7 @@ function renderCarteira(){
           </div>
           <div id="${uid}" style="display:none;padding:.75rem">
             ${mkDim('CONF (situação)',g.conf,g.conf['C']&&!g.conf['P']?'#2dd4a0':'#f5a623')}
-            ${mkDim('CR (tipo de operação)',g.cr,'#5b8af5')}
+            ${mkCRSection(g.cr,g.confByCR)}
             ${mkDim('Tipo de título',g.tipo,'#a78bfa')}
             ${Object.keys(g.motivos).length?mkDim('Motivo de recompra',g.motivos,'#fb923c'):''}
           </div>
