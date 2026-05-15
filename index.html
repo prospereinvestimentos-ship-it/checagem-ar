@@ -1390,10 +1390,7 @@ function renderControladores(){
     const tot=mine.length;if(!tot)return'';
     const feito=mine.filter(({r})=>conf(r)==='C').length;
     const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
-    const venc=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').length;
-    const alrt=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='alerta').length;
-    const valVenc=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
-    const valAlrt=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
+    // venc/alrt calculados após grpMap para bater com a lista
     const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
     const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
@@ -1432,6 +1429,11 @@ function renderControladores(){
     const grpsNovo=todosGrps.filter(g=>g.novo&&!g.notasVenc.length&&!g.notasAlerta.length).sort((a,b)=>b.notas-a.notas);
     const grpsDentroPrazo=todosGrps.filter(g=>g.notasDentroPrazo.length&&!g.notasVenc.length&&!g.notasAlerta.length&&!g.novo).sort((a,b)=>b.notasDentroPrazo.length-a.notasDentroPrazo.length);
     const grpsSemPend=todosGrps.filter(g=>g.notas>0&&g.feito===g.notas).sort((a,b)=>b.notas-a.notas);
+    // Totais calculados direto dos grupos — bate com a lista
+    const venc=grpsVenc.reduce((s,g)=>s+g.notasVenc.length,0);
+    const valVenc=grpsVenc.reduce((s,g)=>s+g.valVenc,0);
+    const alrt=grpsAlerta.reduce((s,g)=>s+g.notasAlerta.length,0);
+    const valAlrt=grpsAlerta.reduce((s,g)=>s+g.valAlerta,0);
 
     // Função para renderizar lista de notas dentro de um grupo
     function mkNotasGrp(notas,cor){
