@@ -1390,10 +1390,10 @@ function renderControladores(){
     const tot=mine.length;if(!tot)return'';
     const feito=mine.filter(({r})=>conf(r)==='C').length;
     const valF=mine.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
-    const venc=mine.filter(({r})=>prazoSt(r)==='vencido').length;
-    const alrt=mine.filter(({r})=>prazoSt(r)==='alerta').length;
-    const valVenc=mine.filter(({r})=>prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
-    const valAlrt=mine.filter(({r})=>prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
+    const venc=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').length;
+    const alrt=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='alerta').length;
+    const valVenc=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
+    const valAlrt=mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='alerta').reduce((s,{valorNota})=>s+valorNota,0);
     const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
     const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
