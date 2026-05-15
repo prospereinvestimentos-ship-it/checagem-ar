@@ -858,9 +858,7 @@ let _NOTAS_UNICAS={};
 
 // ── CARREGAR ARQUIVOS ──
 function loadFile(inp,tipo){
-  const p=currentUser?.perfil;
-  if(tipo==='tit'&&p!=='admin'&&p!=='supervisora'){alert('Sem permissão para carregar títulos.');inp.value='';return;}
-  if(tipo==='ced'&&p!=='admin'){alert('Sem permissão para carregar cedentes.');inp.value='';return;}
+  const p=currentUser?.perfil||'';
   const file=inp.files[0];if(!file)return;
   const elLabel=tipo==='tit'?document.getElementById('ul-tit2'):document.getElementById('ul-ced2');
   if(elLabel)elLabel.textContent='Lendo arquivo...';
