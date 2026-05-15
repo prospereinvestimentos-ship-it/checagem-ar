@@ -765,19 +765,17 @@ function applyPerms(){
   document.getElementById('nav-config').style.display=(p==='operadora'||isConsulta)?'none':'flex';
   document.getElementById('nav-usuarios').style.display=isAdmin?'flex':'none';
   document.getElementById('nav-cfg-sec').style.display=(p==='operadora'||isConsulta)?'none':'block';
-  // Upload de titulos so para admin e supervisora
+  // Upload de titulos so para admin e supervisora — visual only, permissão verificada no loadFile
   const cardTit=document.getElementById('uc-tit2');
   if(cardTit){
-    cardTit.style.cursor=podeUpload?'pointer':'default';
-    cardTit.style.opacity=podeUpload?'1':'0.6';
-    cardTit.onclick=podeUpload?()=>document.getElementById('fi-tit').click():null;
+    cardTit.style.cursor=podeUpload?'pointer':'not-allowed';
+    cardTit.style.opacity=podeUpload?'1':'0.5';
   }
-  // Upload de cedentes so para admin
+  // Upload de cedentes so para admin — visual only
   const cardCed=document.getElementById('uc-ced2');
   if(cardCed){
-    cardCed.style.cursor=isAdmin?'pointer':'default';
-    cardCed.style.opacity=isAdmin?'1':'0.6';
-    cardCed.onclick=isAdmin?()=>document.getElementById('fi-ced').click():null;
+    cardCed.style.cursor=isAdmin?'pointer':'not-allowed';
+    cardCed.style.opacity=isAdmin?'1':'0.5';
   }
   // Esconder botões de registro para consulta
   const btnRegistrar=document.querySelector('[onclick="openNovoContato()"]');
@@ -2530,4 +2528,3 @@ loadUsers();
 </script>
 </body>
 </html>
-v
