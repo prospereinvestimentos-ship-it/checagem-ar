@@ -1171,7 +1171,7 @@ function renderDash(){
   notas.forEach(({r})=>ps[prazoSt(r)]++);
 
   // Alertas por nota unica (usa o idx da row representativa)
-  const bloqueios=notas.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
+  const bloqueios=notas.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').length;
   const limiteBloq=notas.filter(({idx})=>_alertMap[idx]?.nivelLimite==='bloqueio').length;
 
   // Cedentes novos - CPFs unicos com operacoes ativas
@@ -1190,7 +1190,7 @@ function renderDash(){
     return parseVal(r['VALOR(R$)']||gc(r,18))>=min;
   }).reduce((s,{valorNota})=>s+valorNota,0);
   const valFeito=notas.filter(({r})=>conf(r)==='C').reduce((s,{valorNota})=>s+valorNota,0);
-  const valAtraso=notas.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').reduce((s,{valorNota})=>s+valorNota,0);
+  const valAtraso=notas.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').reduce((s,{valorNota})=>s+valorNota,0);
 
   const pct=v=>nNotas?Math.round(v/nNotas*100)+'%':'0%';
 
@@ -1199,7 +1199,7 @@ function renderDash(){
   // Alertas por grupo (por nota unica)
   const alertGrupo={};
   notas.forEach(({r,idx})=>{
-    if(_alertMap[idx]?.nivel==='bloqueio'){
+    if(conf(r)!=='C'&&prazoSt(r)==='vencido'){
       const g=getCed(r).grupo||'Sem grupo';
       alertGrupo[g]=(alertGrupo[g]||0)+1;
     }
