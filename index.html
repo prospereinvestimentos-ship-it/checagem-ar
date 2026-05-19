@@ -1920,10 +1920,13 @@ function renderCarteira(){
     g.qtd++;g.val+=val;
     if(!g.conf[conf])g.conf[conf]={qtd:0,val:0};g.conf[conf].qtd++;g.conf[conf].val+=val;
     if(!g.cr[cr])g.cr[cr]={qtd:0,val:0};g.cr[cr].qtd++;g.cr[cr].val+=val;
-    // Split C/P por CR
+    const cpfCR=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+    const regCR=getRegra(cpfCR);
+    const minCR=regCR?parseFloat(regCR.min)||DEFAULT_RULES.min:DEFAULT_RULES.min;
+    const confKey=conf==='C'?'C':(val<minCR?'F':'P');
     if(!g.confByCR[cr])g.confByCR[cr]={};
-    if(!g.confByCR[cr][conf])g.confByCR[cr][conf]={qtd:0,val:0};
-    g.confByCR[cr][conf].qtd++;g.confByCR[cr][conf].val+=val;
+    if(!g.confByCR[cr][confKey])g.confByCR[cr][confKey]={qtd:0,val:0};
+    g.confByCR[cr][confKey].qtd++;g.confByCR[cr][confKey].val+=val;
     if(!g.tipo[tipo])g.tipo[tipo]={qtd:0,val:0};g.tipo[tipo].qtd++;g.tipo[tipo].val+=val;
     if(motivo){if(!g.motivos[motivo])g.motivos[motivo]={qtd:0,val:0};g.motivos[motivo].qtd++;g.motivos[motivo].val+=val;}
   });
@@ -1934,64 +1937,57 @@ function renderCarteira(){
   function mkCRSection(crMap,confByCR){
     const entries=Object.entries(crMap).sort((a,b)=>b[1].val-a[1].val);
     if(!entries.length)return'';
-    // Totais
-    let totConfQtd=0,totConfVal=0,totPendQtd=0,totPendVal=0,totVal=0;
+    let tCQ=0,tCV=0,tPQ=0,tPV=0,tFQ=0,tFV=0,tV=0;
     entries.forEach(([cr,v])=>{
       const d=confByCR[cr]||{};
-      const c=d['C']||{qtd:0,val:0};
-      const p=d['P']||{qtd:0,val:0};
-      totConfQtd+=c.qtd;totConfVal+=c.val;
-      totPendQtd+=p.qtd;totPendVal+=p.val;
-      totVal+=v.val;
+      const c=d['C']||{qtd:0,val:0},p=d['P']||{qtd:0,val:0},f=d['F']||{qtd:0,val:0};
+      tCQ+=c.qtd;tCV+=c.val;tPQ+=p.qtd;tPV+=p.val;tFQ+=f.qtd;tFV+=f.val;tV+=v.val;
     });
     return`<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
-      <thead>
-        <tr style="background:var(--bg3)">
-          <th style="padding:5px 8px;text-align:left;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Classe de risco</th>
-          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. qtd</th>
-          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. valor</th>
-          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. qtd</th>
-          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. valor</th>
-          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Total</th>
-        </tr>
-      </thead>
+      <thead><tr style="background:var(--bg3)">
+        <th style="padding:5px 8px;text-align:left;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Classe de risco</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. qtd</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. valor</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. qtd</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. valor</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--text3);border-bottom:1px solid var(--border)" title="Abaixo do valor mínimo configurado">Fora regra qtd</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--text3);border-bottom:1px solid var(--border)" title="Abaixo do valor mínimo configurado">Fora regra valor</th>
+        <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Total</th>
+      </tr></thead>
       <tbody>
         ${entries.map(([cr,v])=>{
           const cor=CR_CORES[cr]||'#9294a0';
           const label=CR_LABELS[cr]||cr;
           const d=confByCR[cr]||{};
-          const c=d['C']||{qtd:0,val:0};
-          const p=d['P']||{qtd:0,val:0};
+          const c=d['C']||{qtd:0,val:0},p=d['P']||{qtd:0,val:0},f=d['F']||{qtd:0,val:0};
           return`<tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 8px">
-              <div style="display:flex;align-items:center;gap:7px">
-                <div style="width:24px;height:24px;border-radius:5px;background:${cor};display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                  <span style="color:white;font-size:9px;font-weight:700">${cr}</span>
-                </div>
-                <span style="color:var(--text)">${label}</span>
-              </div>
-            </td>
+            <td style="padding:6px 8px"><div style="display:flex;align-items:center;gap:7px">
+              <div style="width:24px;height:24px;border-radius:5px;background:${cor};display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="color:white;font-size:9px;font-weight:700">${cr}</span></div>
+              <span style="color:var(--text)">${label}</span>
+            </div></td>
             <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:500">${c.qtd||'—'}</td>
             <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'DM Mono',monospace">${c.qtd?fmtVal(c.val):'—'}</td>
             <td style="padding:6px 8px;text-align:right;color:var(--amber);font-weight:500">${p.qtd||'—'}</td>
             <td style="padding:6px 8px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace">${p.qtd?fmtVal(p.val):'—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--text3);font-weight:500">${f.qtd||'—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--text3);font-family:'DM Mono',monospace">${f.qtd?fmtVal(f.val):'—'}</td>
             <td style="padding:6px 8px;text-align:right;font-weight:500;font-family:'DM Mono',monospace">${fmtVal(v.val)}</td>
           </tr>`;
         }).join('')}
       </tbody>
-      <tfoot>
-        <tr style="background:var(--bg3);border-top:1px solid var(--border2)">
-          <td style="padding:6px 8px;font-weight:500;color:var(--text2)">Total</td>
-          <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:500">${totConfQtd}</td>
-          <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'DM Mono',monospace">${fmtVal(totConfVal)}</td>
-          <td style="padding:6px 8px;text-align:right;color:var(--amber);font-weight:500">${totPendQtd}</td>
-          <td style="padding:6px 8px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace">${fmtVal(totPendVal)}</td>
-          <td style="padding:6px 8px;text-align:right;font-weight:600;font-family:'DM Mono',monospace">${fmtVal(totVal)}</td>
-        </tr>
-      </tfoot>
+      <tfoot><tr style="background:var(--bg3);border-top:1px solid var(--border2)">
+        <td style="padding:6px 8px;font-weight:500;color:var(--text2)">Total</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:500">${tCQ||'—'}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'DM Mono',monospace">${tCQ?fmtVal(tCV):'—'}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--amber);font-weight:500">${tPQ||'—'}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace">${tPQ?fmtVal(tPV):'—'}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--text3);font-weight:500">${tFQ||'—'}</td>
+        <td style="padding:6px 8px;text-align:right;color:var(--text3);font-family:'DM Mono',monospace">${tFQ?fmtVal(tFV):'—'}</td>
+        <td style="padding:6px 8px;text-align:right;font-weight:600;font-family:'DM Mono',monospace">${fmtVal(tV)}</td>
+      </tr></tfoot>
     </table>`;
   }
-
+  
   function mkDim(titulo,map,cor){
     const entries=Object.entries(map).sort((a,b)=>b[1].val-a[1].val);
     if(!entries.length)return'';
