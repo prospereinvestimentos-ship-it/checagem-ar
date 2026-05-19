@@ -311,6 +311,7 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
         <div class="upload-card" style="padding:.75rem;margin-bottom:8px" id="uc-tit2" onclick="document.getElementById('fi-tit').click()">
           <div style="font-size:11px;font-weight:500;margin-bottom:2px">TitulosAbertoAR</div>
           <div style="font-size:10px;color:var(--text2)" id="ul-tit2">Carregar .xlsx</div>
+          <div id="tit-age-alert" style="display:none;font-size:10px;margin-top:3px;font-weight:500"></div>
         </div>
         <div class="upload-card" style="padding:.75rem;margin-bottom:8px" id="uc-ced2" onclick="document.getElementById('fi-ced').click()">
           <div style="font-size:11px;font-weight:500;margin-bottom:2px">CadastroCedentes</div>
@@ -403,6 +404,11 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
           <select id="cart-cr" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os CRs</option></select>
           <select id="cart-tipo" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os tipos</option></select>
           <select id="cart-motivo" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)"><option value="">Todos os motivos</option></select>
+          <select id="cart-abaixo" onchange="renderCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;color:var(--text)">
+            <option value="">Todos os valores</option>
+            <option value="abaixo">Abaixo da regra</option>
+            <option value="acima">Acima da regra</option>
+          </select>
           <button onclick="limparFiltrosCarteira()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;color:var(--text2);cursor:pointer">✕ Limpar</button>
           <span id="cart-info" style="font-size:11px;color:var(--text2);margin-left:auto"></span>
         </div>
@@ -1825,7 +1831,7 @@ function buildColunaRecompra(viols){
 
 // ── CARTEIRA COMPLETA ──
 const CR_LABELS={'P':'Operação Padrão','T':'Operação em Tranche','C':'Operação Comissária','BG':'Boleto Garantido','CL':'Operação Clean','CE':'Comissária c/ Escrow','I':'Intercompany','BA':'Barter','EB':'Boleto Especial','B':'Boleto Especial + Tranche'};
-const CR_CORES={'P':'#5b8af5','T':'#2dd4a0','C':'#f5a623','BG':'#f05252','CL':'#a78bfa','CE':'#fb923c','I':'#fbbf24','BA':'#9294a0','EB':'#5b8af5','B':'#2dd4a0','OUT':'#5a5c68'};
+const CR_CORES={'P':'#5b8af5','E':'#EAB308','T':'#8B5CF6','C':'#EF4444','B':'#3B82F6','BG':'#374151','CL':'#F97316','CE':'#15803D','I':'#1D4ED8','BA':'#6B7280','EB':'#EAB308','OUT':'#5a5c68'};
 
 function renderCarteira(){
   const body=document.getElementById('carteira-body');
@@ -1860,6 +1866,7 @@ function renderCarteira(){
   const fCr=selCr?.value||'';
   const fTipo=selTipo?.value||'';
   const fMotivo=selMotivo?.value||'';
+  const fAbaixo=document.getElementById('cart-abaixo')?.value||'';
 
   const filtrado=TITS_ELEG.filter(r=>{
     const ci=getCed(r);
@@ -1869,7 +1876,27 @@ function renderCarteira(){
     if(fCr&&String(r['CR']||gc(r,2)).trim().toUpperCase()!==fCr)return false;
     if(fTipo&&String(r['TIPO']||gc(r,4)).trim().toUpperCase()!==fTipo)return false;
     if(fMotivo&&String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim()!==fMotivo)return false;
+    if(fAbaixo){
+      const cpf=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+      const reg=getRegra(cpf);
+      const min=reg?parseFloat(reg.min)||DEFAULT_RULES.min:DEFAULT_RULES.min;
+      const val=parseVal(r['VALOR(R$)']||gc(r,18));
+      if(fAbaixo==='abaixo'&&val>=min)return false;
+      if(fAbaixo==='acima'&&val<min)return false;
+    }
     return true;
+  });
+  // Contar abaixo da regra por cedente
+  const abaixoRegraPorCed={};
+  TITS_ELEG.filter(r=>{
+    const cpf=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+    const reg=getRegra(cpf);
+    const min=reg?parseFloat(reg.min)||DEFAULT_RULES.min:DEFAULT_RULES.min;
+    return parseVal(r['VALOR(R$)']||gc(r,18))<min;
+  }).forEach(r=>{
+    const grp=getCed(r).grupo||'Sem grupo';
+    if(!abaixoRegraPorCed[grp])abaixoRegraPorCed[grp]=0;
+    abaixoRegraPorCed[grp]++;
   });
 
   // Totais
@@ -1907,36 +1934,62 @@ function renderCarteira(){
   function mkCRSection(crMap,confByCR){
     const entries=Object.entries(crMap).sort((a,b)=>b[1].val-a[1].val);
     if(!entries.length)return'';
-    return`<div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Tipo de operação (CR)</div>
-      ${entries.map(([cr,v])=>{
-        const cor=CR_CORES[cr]||'#9294a0';
-        const label=CR_LABELS[cr]||cr;
-        const cpData=confByCR[cr]||{};
-        const conf=cpData['C']||{qtd:0,val:0};
-        const pend=cpData['P']||{qtd:0,val:0};
-        return`<div style="background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;border-left:3px solid ${cor}">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-            <span style="background:${cor};color:white;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700;flex-shrink:0">${cr}</span>
-            <span style="font-size:11px;font-weight:500;flex:1">${label}</span>
-            <span style="font-size:11px;font-weight:600">${v.qtd} notas</span>
-            <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text2)">${fmtVal(v.val)}</span>
-          </div>
-          <div style="display:flex;gap:10px">
-            ${conf.qtd?`<div style="display:flex;align-items:center;gap:4px;font-size:10px">
-              <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-              <span style="color:var(--green);font-weight:500">${conf.qtd} confirmado${conf.qtd>1?'s':''}</span>
-              <span style="color:var(--text2)">${fmtVal(conf.val)}</span>
-            </div>`:''}
-            ${pend.qtd?`<div style="display:flex;align-items:center;gap:4px;font-size:10px">
-              <span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>
-              <span style="color:var(--amber);font-weight:500">${pend.qtd} pendente${pend.qtd>1?'s':''}</span>
-              <span style="color:var(--text2)">${fmtVal(pend.val)}</span>
-            </div>`:''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+    // Totais
+    let totConfQtd=0,totConfVal=0,totPendQtd=0,totPendVal=0,totVal=0;
+    entries.forEach(([cr,v])=>{
+      const d=confByCR[cr]||{};
+      const c=d['C']||{qtd:0,val:0};
+      const p=d['P']||{qtd:0,val:0};
+      totConfQtd+=c.qtd;totConfVal+=c.val;
+      totPendQtd+=p.qtd;totPendVal+=p.val;
+      totVal+=v.val;
+    });
+    return`<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
+      <thead>
+        <tr style="background:var(--bg3)">
+          <th style="padding:5px 8px;text-align:left;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Classe de risco</th>
+          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. qtd</th>
+          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--green);border-bottom:1px solid var(--border)">Conf. valor</th>
+          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. qtd</th>
+          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--amber);border-bottom:1px solid var(--border)">Pend. valor</th>
+          <th style="padding:5px 8px;text-align:right;font-weight:500;color:var(--text2);border-bottom:1px solid var(--border)">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${entries.map(([cr,v])=>{
+          const cor=CR_CORES[cr]||'#9294a0';
+          const label=CR_LABELS[cr]||cr;
+          const d=confByCR[cr]||{};
+          const c=d['C']||{qtd:0,val:0};
+          const p=d['P']||{qtd:0,val:0};
+          return`<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 8px">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="width:24px;height:24px;border-radius:5px;background:${cor};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  <span style="color:white;font-size:9px;font-weight:700">${cr}</span>
+                </div>
+                <span style="color:var(--text)">${label}</span>
+              </div>
+            </td>
+            <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:500">${c.qtd||'—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'DM Mono',monospace">${c.qtd?fmtVal(c.val):'—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--amber);font-weight:500">${p.qtd||'—'}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace">${p.qtd?fmtVal(p.val):'—'}</td>
+            <td style="padding:6px 8px;text-align:right;font-weight:500;font-family:'DM Mono',monospace">${fmtVal(v.val)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="background:var(--bg3);border-top:1px solid var(--border2)">
+          <td style="padding:6px 8px;font-weight:500;color:var(--text2)">Total</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:500">${totConfQtd}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'DM Mono',monospace">${fmtVal(totConfVal)}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--amber);font-weight:500">${totPendQtd}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--amber);font-family:'DM Mono',monospace">${fmtVal(totPendVal)}</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:600;font-family:'DM Mono',monospace">${fmtVal(totVal)}</td>
+        </tr>
+      </tfoot>
+    </table>`;
   }
 
   function mkDim(titulo,map,cor){
@@ -1954,7 +2007,7 @@ function renderCarteira(){
   }
 
   document.getElementById('cart-content').innerHTML=grpsSorted.length?`
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">
+    <div style="display:flex;flex-direction:column;gap:12px">
       ${grpsSorted.map(g=>{
         const uid='cart_'+g.grp.replace(/[^a-zA-Z0-9]/g,'_');
         return`<div class="section" style="margin-bottom:0">
@@ -1964,12 +2017,12 @@ function renderCarteira(){
               <div style="font-size:11px;color:var(--text2)">${g.ctrl} · ${g.qtd.toLocaleString('pt-BR')} notas</div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:500">${fmtVal(g.val)}</span>
+              ${abaixoRegraPorCed[g.grp]?`<span style="background:var(--amber-bg);color:var(--amber);padding:1px 7px;border-radius:100px;font-size:10px" title="Títulos abaixo da regra">⬇ ${abaixoRegraPorCed[g.grp]}</span>`:''}
+              <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">${fmtVal(g.val)}</span>
               <span id="${uid}_ico" style="font-size:12px;color:var(--text3)">▶</span>
             </div>
           </div>
           <div id="${uid}" style="display:none;padding:.75rem">
-            ${mkDim('CONF (situação)',g.conf,g.conf['C']&&!g.conf['P']?'#2dd4a0':'#f5a623')}
             ${mkCRSection(g.cr,g.confByCR)}
             ${mkDim('Tipo de título',g.tipo,'#a78bfa')}
             ${Object.keys(g.motivos).length?mkDim('Motivo de recompra',g.motivos,'#fb923c'):''}
@@ -1980,7 +2033,7 @@ function renderCarteira(){
 }
 
 function limparFiltrosCarteira(){
-  ['cart-ctrl','cart-grp','cart-conf','cart-cr','cart-tipo','cart-motivo'].forEach(id=>{
+  ['cart-ctrl','cart-grp','cart-conf','cart-cr','cart-tipo','cart-motivo','cart-abaixo'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
   renderCarteira();
@@ -2580,7 +2633,25 @@ async function loadTitulosSheets(){
       const d=new Date(meta[0][1]);
       subtext+=` · ${meta[0][0]} ${d.toLocaleDateString('pt-BR')}`;
     }
-    if(el){el.textContent=subtext;el.style.color='var(--green)';}
+    if(el){
+      el.textContent=subtext;
+      el.style.color='var(--green)';
+      // Alerta de defasagem
+      if(meta&&meta[0]&&meta[0][1]){
+        const dataUpload=new Date(meta[0][1]);
+        const diasDesde=Math.floor((new Date()-dataUpload)/864e5);
+        const alertEl=document.getElementById('tit-age-alert');
+        if(alertEl){
+          if(diasDesde>=1){
+            alertEl.textContent='⚠ Dados de '+diasDesde+'d atrás';
+            alertEl.style.display='block';
+            alertEl.style.color=diasDesde>=3?'var(--red)':'var(--amber)';
+          } else {
+            alertEl.style.display='none';
+          }
+        }
+      }
+    }
     console.log('TitulosAbertoAR carregado do Sheets:',raw.length,'linhas');
     // buildAll será chamado pelo enterApp após loadConfig
     return true;
