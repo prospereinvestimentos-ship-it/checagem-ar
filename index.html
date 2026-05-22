@@ -796,9 +796,9 @@ function applyPerms(){
   const isAdmin=p==='admin';
   const isSuperv=p==='supervisora';
   const podeUpload=isAdmin||isSuperv;
-  document.getElementById('nav-config').style.display=(p==='operadora'||isConsulta)?'none':'flex';
+  document.getElementById('nav-config').style.display='flex';
   document.getElementById('nav-usuarios').style.display=isAdmin?'flex':'none';
-  document.getElementById('nav-cfg-sec').style.display=(p==='operadora'||isConsulta)?'none':'block';
+  document.getElementById('nav-cfg-sec').style.display='block'; // todos visualizam regras
   // Upload de titulos so para admin e supervisora — visual only, permissão verificada no loadFile
   const cardTit=document.getElementById('uc-tit2');
   if(cardTit){
@@ -917,8 +917,10 @@ function loadFile(inp,tipo){
         console.log('Colunas:',raw.length?Object.keys(raw[0]).slice(0,5):[]);
         console.log('CONF amostra:',amostra.map(r=>r['CONF']||gc(r,1)));
         document.getElementById('uc-tit2').classList.add('done');
-        if(elLabel){elLabel.textContent=TITS_ELEG.length+' elegíveis ✓';elLabel.style.color='var(--green)';}
+        if(elLabel){elLabel.textContent='Salvando no Sheets...';elLabel.style.color='var(--amber)';}
         buildAll();
+        // Salvar automaticamente no Sheets substituindo dados anteriores
+        salvarTitulosSheets(raw, currentUser?.nome||'usuario');
       }
     }catch(err){
       console.error('loadFile erro:',err);
@@ -2405,10 +2407,13 @@ async function saveConfig(){
 
 function renderCfgPage(){
   const p=currentUser.perfil;
-  if(p==='operadora'||p==='consulta'){document.getElementById('cfg-restricted').style.display='flex';document.getElementById('cfg-content').style.display='none';return;}
+  // Todos visualizam; apenas admin e supervisora podem editar
   document.getElementById('cfg-restricted').style.display='none';
   document.getElementById('cfg-content').style.display='block';
   const canEdit=p==='admin'||p==='supervisora';
+  // Esconder botão Salvar para quem não pode editar
+  const btnSalvar=document.querySelector('[onclick="saveConfig()"]');
+  if(btnSalvar)btnSalvar.style.display=canEdit?'':'none';
   renderPrazosRows(canEdit);renderRegrasRows(canEdit);
   document.getElementById('dr-min').value=DEFAULT_RULES.min;
   document.getElementById('dr-ced-pct').value=DEFAULT_RULES.cedPct;
@@ -2416,6 +2421,13 @@ function renderCfgPage(){
   document.getElementById('dr-sac-pct').value=DEFAULT_RULES.sacPct;
   document.getElementById('dr-sac-val').value=DEFAULT_RULES.sacVal;
   document.getElementById('dr-dias').value=DEFAULT_RULES.dias;
+  // Bloquear inputs de regras padrao para nao-editores
+  ["dr-min","dr-ced-pct","dr-ced-val","dr-sac-pct","dr-sac-val","dr-dias"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.readOnly=!canEdit;
+  });
+  // Ocultar botoes Adicionar para nao-editores
+  document.querySelectorAll(".btn-add").forEach(b=>b.style.display=canEdit?"":"none");
 }
 
 function renderPrazosRows(canEdit){
@@ -2599,7 +2611,6 @@ async function salvarTitulosSheets(rows, usuario){
 }
 
 async function loadTitulosSheets(){
-  if(_titulosCarregadosLocal)return true; // já carregado via upload, não sobrescrever
   const el=document.getElementById('ul-tit2');
   const card=document.getElementById('uc-tit2');
   try{
