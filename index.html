@@ -1238,11 +1238,15 @@ function renderDash(){
   const alertGrupo={};
   notas.forEach(({r,idx})=>{
     if(conf(r)!=='C'&&prazoSt(r)==='vencido'){
-      const g=getCed(r).grupo||'Sem grupo';
-      alertGrupo[g]=(alertGrupo[g]||0)+1;
+      const ci=getCed(r);
+      const g=ci.grupo||'Sem grupo';
+      const ct=ci.controlador||'';
+      if(!alertGrupo[g])alertGrupo[g]={count:0,ctrl:ct};
+      alertGrupo[g].count++;
     }
   });
-  const alertGrupoSorted=Object.entries(alertGrupo).sort((a,b)=>b[1]-a[1]);
+  const alertGrupoSorted=Object.entries(alertGrupo).sort((a,b)=>b[1].count-a[1].count);
+  const alertGrupoCtrlOpts=[...new Set(alertGrupoSorted.map(([,v])=>v.ctrl).filter(Boolean))].sort();
 
   // Cedentes fora do prazo - por nota unica, agrupado por cedente
   const cedFora={};
@@ -1260,13 +1264,18 @@ function renderDash(){
 
   // Controladores ATIVOS - so quem tem notas com CONF P ou C
   const ctrlAtivos=new Set();
-  const ctrlSemCont={notas:0,valor:0};
+  const ctrlSemCont={notas:0,valor:0,grupos:{}};
   notas.forEach(({r,valorNota})=>{
     const c=conf(r);
     if(c==='P'||c==='C'){
       const ct=getCed(r).controlador;
       if(ct&&ct!=='—'&&ct.trim())ctrlAtivos.add(ct);
-      else{ctrlSemCont.notas++;ctrlSemCont.valor+=valorNota;}
+      else{
+        ctrlSemCont.notas++;ctrlSemCont.valor+=valorNota;
+        const grp=getCed(r).grupo||r['CEDENTE']||gc(r,8)||'Sem grupo';
+        if(!ctrlSemCont.grupos[grp])ctrlSemCont.grupos[grp]={notas:0,valor:0};
+        ctrlSemCont.grupos[grp].notas++;ctrlSemCont.grupos[grp].valor+=valorNota;
+      }
     }
   });
   const ctrlPend={},ctrlTotal={};
@@ -1306,38 +1315,64 @@ function renderDash(){
     <div class="section-hdr"><div class="section-title">Pendentes por controlador (notas ativas)</div></div>
     <div class="section-body">
       ${ctrlSorted.length?ctrlSorted.map(([k,v])=>mkBar(k,v,'#5b8af5',ctrlTotal[k]||v)).join(''):'<div class="empty" style="padding:1rem">Nenhum controlador ativo</div>'}
+      ${(()=>{
+        const grpsSorted=Object.entries(ctrlSemCont.grupos).sort((a,b)=>b[1].notas-a[1].notas);
+        if(!grpsSorted.length)return'';
+        const maxN=grpsSorted[0][1].notas||1;
+        return`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--amber);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+            ⚠ Sem controlador (${grpsSorted.length} grupo${grpsSorted.length>1?'s':''} · ${ctrlSemCont.notas} nota${ctrlSemCont.notas>1?'s':''})
+          </div>
+          ${grpsSorted.map(([g,v])=>{const p=Math.round(v.notas/maxN*100);return`<div class="bar-row"><div class="bar-lbl" title="${g}">${g}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(p,2)}%;background:#f5a623"><span>${v.notas}</span></div></div><div class="bar-pct" style="width:90px;text-align:right;font-size:10px;color:var(--text2)">${fmtVal(v.valor)}</div></div>`;}).join('')}
+        </div>`;
+      })()}
     </div>
   </div>
   <div class="section" style="margin-bottom:0">
-    <div class="section-hdr"><div class="section-title">Alertas de bloqueio por grupo</div></div>
-    <div class="section-body">
-      ${alertGrupoSorted.length?alertGrupoSorted.map(([g,v])=>mkBar(g,v,'#f05252',bloqueios)).join(''):'<div class="empty" style="padding:1rem;color:var(--green)">Nenhum alerta</div>'}
+    <div class="section-hdr" style="flex-wrap:wrap;gap:8px">
+      <div class="section-title">Alertas de bloqueio por grupo</div>
+      ${alertGrupoCtrlOpts.length?`<select id="dash-alrt-ctrl" onchange="filterAlertGrupo()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px;font-size:11px;color:var(--text)"><option value="">Todos os controladores</option>${alertGrupoCtrlOpts.map(c=>`<option>${c}</option>`).join('')}</select>`:''}
+    </div>
+    <div class="section-body" id="dash-alrt-grp-body">
+      ${(()=>{
+        if(!alertGrupoSorted.length)return'<div class="empty" style="padding:1rem;color:var(--green)">Nenhum alerta</div>';
+        const top10=alertGrupoSorted.slice(0,10);
+        const resto=alertGrupoSorted.slice(10);
+        const uid='alrt_grp_more';
+        const rows=alertGrupoSorted.map(([g,v])=>mkBar(g,v.count,'#f05252',bloqueios));
+        const top=rows.slice(0,10).join('');
+        const more=rows.slice(10).join('');
+        return top+(more?`<div id="${uid}" style="display:none">${more}</div><button onclick="(function(b){const d=document.getElementById('${uid}');const show=d.style.display==='none';d.style.display=show?'block':'none';b.textContent=show?'▲ Ver menos':'▼ Ver todos (${alertGrupoSorted.length})'})(this)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 12px;font-size:11px;color:var(--text2);cursor:pointer;width:100%;margin-top:6px;font-family:inherit">▼ Ver todos (${alertGrupoSorted.length})</button>`:'');
+      })()}
     </div>
   </div>
 </div>
-<div class="section">
-  <div class="section-hdr">
-    <div class="section-title">Cedentes fora do prazo (${cedForaList.length})</div>
-    <select id="dash-f-ctrl" onchange="filterCedFora()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;color:var(--text)">
-      <option value="">Todos os controladores</option>
-      ${ctrlsOpts.map(c=>`<option>${c}</option>`).join('')}
-    </select>
-  </div>
-  <div class="section-body" style="padding:0">
-    <div class="twrap">
-      <table id="dash-fora-table">
-        <thead><tr>
-          <th>Novo</th><th>Cedente</th><th>Controlador</th><th>Grupo</th>
-          <th style="text-align:right">Notas</th><th style="text-align:right">Valor total</th><th style="text-align:right">Max. dias</th>
-        </tr></thead>
-        <tbody id="dash-fora-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>`;
+
+`;
 
   window._cedForaList=cedForaList;
+  window._alertGrupoSorted=alertGrupoSorted;
+  window._bloqueiosTotal=bloqueios;
+  window._fmtVal=fmtVal;
   filterCedFora();
+}
+function filterAlertGrupo(){
+  const sel=document.getElementById('dash-alrt-ctrl');
+  const f=sel?sel.value.trim():'';
+  const body=document.getElementById('dash-alrt-grp-body');
+  if(!body)return;
+  // rebuild bars with filter
+  const all=window._alertGrupoSorted||[];
+  const bloqueios=window._bloqueiosTotal||0;
+  const filtered=f?all.filter(([,v])=>v.ctrl===f):all;
+  if(!filtered.length){body.innerHTML='<div class="empty" style="padding:1rem;color:var(--green)">Nenhum alerta</div>';return;}
+  const fmtVal=window._fmtVal||(v=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}));
+  const mkB=(label,val,col,tot)=>{const p=tot?Math.round(val/tot*100):0;return`<div class="bar-row"><div class="bar-lbl" title="${label}">${label}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(p,1)}%;background:${col}"><span>${val}</span></div></div><div class="bar-pct">${p}%</div></div>`;};
+  const rows=filtered.map(([g,v])=>mkB(g,v.count,'#f05252',bloqueios));
+  const top=rows.slice(0,10).join('');
+  const more=rows.slice(10).join('');
+  const uid='alrt_grp_more';
+  body.innerHTML=top+(more?`<div id="${uid}" style="display:none">${more}</div><button onclick="(function(b){const d=document.getElementById('${uid}');const show=d.style.display==='none';d.style.display=show?'block':'none';b.textContent=show?'\u25b2 Ver menos':'\u25bc Ver todos (${filtered.length})'})(this)" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 12px;font-size:11px;color:var(--text2);cursor:pointer;width:100%;margin-top:6px;font-family:inherit">\u25bc Ver todos (${filtered.length})</button>`:'');
 }
 function filterCedFora(){
   const sel=document.getElementById('dash-f-ctrl');
@@ -1382,7 +1417,7 @@ function renderControladores(){
       ctrl,
       feito:mine.filter(({r})=>conf(r)==='C').length,
       aFazer:mine.filter(({r})=>conf(r)==='P').length,
-      vencido:mine.filter(({r})=>prazoSt(r)==='vencido').length,
+      vencido:mine.filter(({r})=>conf(r)!=='C'&&prazoSt(r)==='vencido').length,
       total:mine.length
     };
   });
@@ -1432,8 +1467,16 @@ function renderControladores(){
     const cpfsNovosCtrl=new Set(mine.filter(({r})=>isNovo(normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7)))).map(({r})=>normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7))));
     const novos=cpfsNovosCtrl.size;
     const bloq=mine.filter(({idx})=>_alertMap[idx]?.nivel==='bloqueio').length;
-    // A Confirmar = tudo CONF≠C (vencido + alerta + novos + dentro do prazo)
-    const aConfirmar=mine.filter(({r})=>conf(r)!=='C');
+    // A Confirmar = mesma logica do Dashboard: CONF!=C, sem prazo vencido, sem bloqueio de limite, acima do valor minimo
+    const aConfirmar=mine.filter(({r,idx})=>{
+      if(conf(r)==='C')return false;
+      if(prazoSt(r)==='vencido')return false;
+      if(_alertMap[idx]?.nivelLimite==='bloqueio')return false;
+      const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
+      const reg=getRegra(cpfC);
+      const min=reg?parseFloat(reg.min)||0:DEFAULT_RULES.min;
+      return parseVal(r['VALOR(R$)']||gc(r,18))>=min;
+    });
     const aFazer=aConfirmar.length;
     const valP=aConfirmar.reduce((s,{valorNota})=>s+valorNota,0);
     const pctFeito=(feito+aFazer)?Math.round(feito/(feito+aFazer)*100):0;
