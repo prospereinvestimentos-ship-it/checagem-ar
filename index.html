@@ -829,14 +829,15 @@ function goPage(p,el){
   if(p==='usuarios')renderUsuariosPage();
   if(p==='controladores'){
     if(TITS_ELEG.length){
-      // Garante que _NOTAS_UNICAS foi construido antes de renderizar
       if(!Object.keys(_NOTAS_UNICAS).length){
         _alertMap=calcAlertMap();
         _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
       }
+      document.getElementById('ctrl-empty').style.display='none';
+      document.getElementById('ctrl-body').style.display='block';
       renderControladores();
     } else {
-      document.getElementById('ctrl-empty').textContent='Carregando dados...';
+      document.getElementById('ctrl-empty').textContent='Carregue as planilhas primeiro';
       document.getElementById('ctrl-empty').style.display='block';
       document.getElementById('ctrl-body').style.display='none';
     }
@@ -1171,10 +1172,11 @@ function buildAll(){
   const badge=document.getElementById('alert-badge');
   badge.style.display=nAlert>0?'inline':'none';badge.textContent=nAlert;
   renderDash();renderFilters();renderOps();
-  document.getElementById('ctrl-empty').style.display='none';
-  document.getElementById('ctrl-body').style.display='block';
-  // Se a aba controladores já estiver visível, renderizar agora
-  renderControladores();
+  if(document.getElementById('page-controladores').classList.contains('active')){
+    document.getElementById('ctrl-empty').style.display='none';
+    document.getElementById('ctrl-body').style.display='block';
+    renderControladores();
+  }
   if(document.getElementById('page-alertas').classList.contains('active'))renderAlertas();
   if(document.getElementById('page-carteira')?.classList.contains('active'))renderCarteira();
 }
