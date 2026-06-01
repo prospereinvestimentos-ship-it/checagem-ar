@@ -828,8 +828,14 @@ function goPage(p,el){
   if(p==='configuracoes')renderCfgPage();
   if(p==='usuarios')renderUsuariosPage();
   if(p==='controladores'){
-    if(TITS_ELEG.length)renderControladores();
-    else{
+    if(TITS_ELEG.length){
+      // Garante que _NOTAS_UNICAS foi construido antes de renderizar
+      if(!Object.keys(_NOTAS_UNICAS).length){
+        _alertMap=calcAlertMap();
+        _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
+      }
+      renderControladores();
+    } else {
       document.getElementById('ctrl-empty').textContent='Carregando dados...';
       document.getElementById('ctrl-empty').style.display='block';
       document.getElementById('ctrl-body').style.display='none';
@@ -979,6 +985,10 @@ function parseCedsArray(rows){
     const cpf=normCPF(row[1]);
     if(!cpf)return;
     const riscoAtual=parseVal(row[29]||0);
+    // Limites por tipo: colunas U(20) a AC(28) — cada coluna e um tipo fixo
+    const limitesArr=[];
+    const _LCOLS=[[20,'BE','Boleto Especial','BE'],[21,'C','Comissionária','C'],[22,'T','Tranche','T'],[23,'BT','B.Esp+Tranche','B'],[24,'BG','Boleto Garantido','BG'],[25,'CL','Op. Clean','CL'],[26,'CE','Comis. c/Escrow','CE'],[27,'I','Intercompany','I'],[28,'BA','Barter','BA']];
+    _LCOLS.forEach(([col,key,label,cr])=>{const val=parseVal(row[col]||0);limitesArr.push({key,label,cr,limite:val>0?val:null});});
     CEDS[cpf]={
       nome:String(row[0]||'').trim(),
       operador:String(row[9]||'').trim(),
@@ -989,6 +999,7 @@ function parseCedsArray(rows){
       dataCad:String(row[13]||'').trim(),
       primeiraOp:String(row[18]||'').trim(),
       riscoAtual,
+      limites:limitesArr,
     };
   });
 }
@@ -1018,6 +1029,8 @@ function parseCeds(rows){
     const cpf=normCPF(getF(['CPF/CNPJ','CPF_CNPJ'])||r[keys[1]]||'');
     if(!cpf)return;
     const riscoAtual=parseVal(getF(['RISCO ATUAL','RISCO_ATUAL'])||r[keys[29]]||0);
+    const limitesArr=[];
+    for(let li=20;li<=28;li+=2){const nome=String(r[keys[li]]||'').trim();const val=parseVal(r[keys[li+1]]||0);if(nome&&val>0)limitesArr.push({tipo:nome,limite:val});}
     CEDS[cpf]={
       nome:String(getF(['NOME','NOME CEDENTE'])||r[keys[0]]||'').trim(),
       operador:String(getF(['OPERADOR'])||r[keys[9]]||'').trim(),
@@ -1028,6 +1041,7 @@ function parseCeds(rows){
       dataCad:String(getF(['DATA DE CADASTRO'])||r[keys[13]]||'').trim(),
       primeiraOp:String(getF(['PRIMEIRA OPERAÇÃO','PRIMEIRA OPERACAO'])||r[keys[18]]||'').trim(),
       riscoAtual,
+      limites:limitesArr,
     };
   });
   console.log('parseCeds (xlsx): carregados',Object.keys(CEDS).length);
@@ -1046,6 +1060,10 @@ function parseCedsFromArray(rows){
     const cpf=normCPF(getH(row,'CPF/CNPJ')||byCol(row,'B'));
     if(!cpf)return;
     const riscoAtual=parseVal(getH(row,'RISCO ATUAL')||byCol(row,'AD'));
+    // Limites por tipo: colunas U(20) a AC(28) — cada coluna e um tipo fixo
+    const limitesArr=[];
+    const _LCOLS=[[20,'BE','Boleto Especial','BE'],[21,'C','Comissionária','C'],[22,'T','Tranche','T'],[23,'BT','B.Esp+Tranche','B'],[24,'BG','Boleto Garantido','BG'],[25,'CL','Op. Clean','CL'],[26,'CE','Comis. c/Escrow','CE'],[27,'I','Intercompany','I'],[28,'BA','Barter','BA']];
+    _LCOLS.forEach(([col,key,label,cr])=>{const val=parseVal(row[col]||0);limitesArr.push({key,label,cr,limite:val>0?val:null});});
     CEDS[cpf]={
       nome:String(getH(row,'NOME CEDENTE')||getH(row,'NOME')||byCol(row,'A')||'').trim(),
       operador:String(getH(row,'OPERADOR')||byCol(row,'J')||'').trim(),
@@ -1056,6 +1074,7 @@ function parseCedsFromArray(rows){
       dataCad:String(getH(row,'DATA DE CADASTRO')||byCol(row,'N')||'').trim(),
       primeiraOp:String(getH(row,'PRIMEIRA OPERACAO')||byCol(row,'S')||'').trim(),
       riscoAtual,
+      limites:limitesArr,
     };
   });
   console.log('parseCedsFromArray: carregados',Object.keys(CEDS).length);
@@ -1155,7 +1174,7 @@ function buildAll(){
   document.getElementById('ctrl-empty').style.display='none';
   document.getElementById('ctrl-body').style.display='block';
   // Se a aba controladores já estiver visível, renderizar agora
-  if(document.getElementById('page-controladores').classList.contains('active'))renderControladores();
+  renderControladores();
   if(document.getElementById('page-alertas').classList.contains('active'))renderAlertas();
   if(document.getElementById('page-carteira')?.classList.contains('active'))renderCarteira();
 }
@@ -1398,7 +1417,7 @@ function renderControladores(){
     _NOTAS_UNICAS=buildNotasUnicas(TITS_ELEG);
   }
   const notas=Object.values(_NOTAS_UNICAS);
-  if(!notas.length){document.getElementById('ctrl-body').innerHTML='<div class="empty">Carregue as planilhas primeiro</div>';return;}
+  if(!notas.length){document.getElementById('ctrl-body').innerHTML='<div class="empty">Nenhuma nota elegível encontrada</div>';return;}
   const conf=r=>String(r['CONF']||gc(r,1)).trim().toUpperCase();
   const ctrlAtivos=new Set();
   notas.forEach(({r})=>{
@@ -1457,8 +1476,7 @@ function renderControladores(){
       }).join('')}
     </div>
   </div>`;
-  document.getElementById('ctrl-body').innerHTML=grafico+`<div class="ctrl-grid">`;
-  document.getElementById('ctrl-body').innerHTML=`<div class="ctrl-grid">${[...ctrlAtivos].map(ctrl=>{
+  document.getElementById('ctrl-body').innerHTML=grafico+`<div class="ctrl-grid">${[...ctrlAtivos].map(ctrl=>{
     const mine=notas.filter(({r})=>getCed(r).controlador===ctrl);
     const tot=mine.length;if(!tot)return'';
     const feito=mine.filter(({r})=>conf(r)==='C').length;
@@ -1960,9 +1978,10 @@ function renderCarteira(){
     const tipo=String(r['TIPO']||gc(r,4)).trim().toUpperCase();
     const motivo=String(r['MOTIVO RECOMENDAÇÃO DE RECOMPRA']||gc(r,29)||'').trim();
     const val=parseVal(r['VALOR(R$)']||gc(r,18));
-    if(!porGrp[grp])porGrp[grp]={grp,ctrl:ci.controlador||'—',qtd:0,val:0,conf:{},cr:{},confByCR:{},tipo:{},motivos:{}};
+    if(!porGrp[grp])porGrp[grp]={grp,ctrl:ci.controlador||'—',qtd:0,val:0,conf:{},cr:{},confByCR:{},tipo:{},motivos:{},cpfs:new Set()};
     const g=porGrp[grp];
     g.qtd++;g.val+=val;
+    const cpfGrp=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));g.cpfs.add(cpfGrp);
     if(!g.conf[conf])g.conf[conf]={qtd:0,val:0};g.conf[conf].qtd++;g.conf[conf].val+=val;
     if(!g.cr[cr])g.cr[cr]={qtd:0,val:0};g.cr[cr].qtd++;g.cr[cr].val+=val;
     const cpfCR=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
@@ -2047,23 +2066,93 @@ function renderCarteira(){
     </div>`;
   }
 
+  // Monta painel de limites por tipo para um grupo (só tipos com titulos)
+  function mkLimites(g){
+    const LCOLS=[{key:'BE',label:'Boleto Especial',cr:'BE'},{key:'C',label:'Comissionária',cr:'C'},{key:'T',label:'Tranche',cr:'T'},{key:'BT',label:'B.Esp+Tranche',cr:'B'},{key:'BG',label:'Boleto Garantido',cr:'BG'},{key:'CL',label:'Op. Clean',cr:'CL'},{key:'CE',label:'Comis. c/Escrow',cr:'CE'},{key:'I',label:'Intercompany',cr:'I'},{key:'BA',label:'Barter',cr:'BA'}];
+    const tiposNoGrp=new Set(Object.keys(g.tipo));
+    // Para cada tipo com titulos no grupo, pegar o maior limite entre os cedentes
+    const tiposComTitulos=LCOLS.filter(lc=>tiposNoGrp.has(lc.cr)||tiposNoGrp.has(lc.key));
+    if(!tiposComTitulos.length)return'';
+    // Consolidar limites por tipo (maior valor entre cedentes do grupo)
+    const limMap={};
+    tiposComTitulos.forEach(lc=>{limMap[lc.key]={...lc,limite:null,usado:g.cr[lc.cr]?.val||g.cr[lc.key]?.val||0};});
+    g.cpfs.forEach(cpf=>{
+      const ced=CEDS[cpf];if(!ced||!ced.limites)return;
+      ced.limites.forEach(({key,limite})=>{
+        if(!limMap[key])return;
+        if(limite!==null&&(limMap[key].limite===null||limite>limMap[key].limite))
+          limMap[key].limite=limite;
+      });
+    });
+    const entries=Object.values(limMap).sort((a,b)=>b.usado-a.usado);
+    return`<div style="margin-bottom:10px">
+      <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Limites por tipo de operação</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${entries.map(({key,label,cr,limite,usado})=>{
+          const cor=CR_CORES[cr]||CR_CORES[key]||'#9294a0';
+          const temLimite=limite!==null&&limite>0;
+          const pct=temLimite?Math.min(Math.round(usado/limite*100),999):0;
+          const corBarra=pct>=100?'#f05252':pct>=80?'#f5a623':'#2dd4a0';
+          return`<div style="background:var(--bg3);border:1px solid ${pct>=100?'rgba(240,82,82,0.4)':pct>=80?'rgba(245,166,35,0.3)':'var(--border)'};border-radius:var(--radius-sm);padding:8px 10px;min-width:150px;flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+              <div style="width:20px;height:20px;border-radius:4px;background:${cor};display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="color:white;font-size:8px;font-weight:700">${key}</span></div>
+              <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+              ${pct>=100?'<span style="font-size:9px;color:#f05252;font-weight:700">ESTOURADO</span>':pct>=80?'<span style="font-size:9px;color:#f5a623;font-weight:600">⚠ '+pct+'%</span>':''}
+            </div>
+            <div style="font-size:10px;color:var(--text2);margin-bottom:${temLimite?'4':'0'}px">
+              <span>Utilizado: <span style="color:var(--text);font-weight:500;font-family:'DM Mono',monospace">${fmtVal(usado)}</span></span>
+              ${temLimite?`<span style="float:right">Limite: <span style="font-family:'DM Mono',monospace">${fmtVal(limite)}</span></span>`:'<span style="float:right;color:var(--text3);font-style:italic">sem limite cadastrado</span>'}
+            </div>
+            ${temLimite?`<div style="background:var(--bg4);border-radius:100px;height:5px;overflow:hidden;margin-top:2px">
+              <div style="width:${Math.min(pct,100)}%;height:100%;background:${corBarra};border-radius:100px"></div>
+            </div>
+            <div style="font-size:9px;color:${corBarra};margin-top:3px;text-align:right;font-weight:500">${pct}% do limite</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
   document.getElementById('cart-content').innerHTML=grpsSorted.length?`
     <div style="display:flex;flex-direction:column;gap:12px">
       ${grpsSorted.map(g=>{
         const uid='cart_'+g.grp.replace(/[^a-zA-Z0-9]/g,'_');
-        return`<div class="section" style="margin-bottom:0">
+        // Calcular alertas de limite para exibir no header
+        const limitesAlert=(()=>{
+          const LCOLS2=[{key:'BE',label:'B.Esp',cr:'BE'},{key:'C',label:'Comis',cr:'C'},{key:'T',label:'Tranc',cr:'T'},{key:'BT',label:'B.Esp+T',cr:'B'},{key:'BG',label:'B.Gar',cr:'BG'},{key:'CL',label:'Clean',cr:'CL'},{key:'CE',label:'Escrow',cr:'CE'},{key:'I',label:'Interc',cr:'I'},{key:'BA',label:'Barter',cr:'BA'}];
+          const estourados=[];const proximos=[];
+          LCOLS2.forEach(({key,label,cr})=>{
+            const usado=g.cr[cr]?.val||g.cr[key]?.val||0;if(!usado)return;
+            let limite=null;
+            g.cpfs.forEach(cpf=>{
+              const ced=CEDS[cpf];if(!ced||!ced.limites)return;
+              const lim=ced.limites.find(l=>l.key===key);
+              if(lim&&lim.limite!==null&&(limite===null||lim.limite>limite))limite=lim.limite;
+            });
+            if(!limite)return;
+            const pct=Math.round(usado/limite*100);
+            if(pct>=100&&!estourados.find(e=>e.key===key))estourados.push({key,label});
+            else if(pct>=80&&!proximos.find(e=>e.key===key))proximos.push({key,label,pct});
+          });
+          return{estourados,proximos};
+        })();
+        const borderStyle=limitesAlert.estourados.length?'border-color:rgba(240,82,82,0.4)':limitesAlert.proximos.length?'border-color:rgba(245,166,35,0.4)':'';
+        return`<div class="section" style="margin-bottom:0;${borderStyle}">
           <div class="section-hdr" style="cursor:pointer" onclick="toggleGrp('${uid}')">
             <div>
               <div class="section-title">${g.grp}</div>
               <div style="font-size:11px;color:var(--text2)">${g.ctrl} · ${g.qtd.toLocaleString('pt-BR')} notas</div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+              ${limitesAlert.estourados.map(({key,label})=>`<span style="background:var(--red-bg);color:var(--red);padding:1px 7px;border-radius:100px;font-size:10px;font-weight:500" title="Limite estourado: ${label}">🔴 ${label} estourado</span>`).join('')}
+              ${limitesAlert.proximos.map(({key,label,pct})=>`<span style="background:var(--amber-bg);color:var(--amber);padding:1px 7px;border-radius:100px;font-size:10px;font-weight:500" title="Próximo do limite: ${label}">⚠ ${label} ${pct}%</span>`).join('')}
               ${abaixoRegraPorCed[g.grp]?`<span style="background:var(--amber-bg);color:var(--amber);padding:1px 7px;border-radius:100px;font-size:10px" title="Títulos abaixo da regra">⬇ ${abaixoRegraPorCed[g.grp]}</span>`:''}
               <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600">${fmtVal(g.val)}</span>
               <span id="${uid}_ico" style="font-size:12px;color:var(--text3)">▶</span>
             </div>
           </div>
           <div id="${uid}" style="display:none;padding:.75rem">
+            ${mkLimites(g)}
             ${mkCRSection(g.cr,g.confByCR)}
             ${mkDim('Tipo de título',g.tipo,'#a78bfa')}
             ${Object.keys(g.motivos).length?mkDim('Motivo de recompra',g.motivos,'#fb923c'):''}
