@@ -1371,7 +1371,6 @@ function renderDash(){
   window._alertGrupoSorted=alertGrupoSorted;
   window._bloqueiosTotal=bloqueios;
   window._fmtVal=fmtVal;
-  filterCedFora();
 }
 function filterAlertGrupo(){
   const sel=document.getElementById('dash-alrt-ctrl');
@@ -1396,7 +1395,9 @@ function filterCedFora(){
   const f=sel?sel.value:'';
   const lista=window._cedForaList||[];
   const filtrado=f?lista.filter(c=>c.controlador===f):lista;
-  document.getElementById('dash-fora-body').innerHTML=filtrado.map(c=>`<tr>
+  const el=document.getElementById('dash-fora-body');
+  if(!el)return;
+  el.innerHTML=filtrado.map(c=>`<tr>
     <td>${c.novo?'<span style="color:#a78bfa;font-size:14px">★</span>':'—'}</td>
     <td title="${c.nome}">${c.nome}</td>
     <td>${c.controlador}</td>
