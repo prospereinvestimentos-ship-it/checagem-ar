@@ -285,9 +285,6 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div class="nav-item" onclick="goPage('controladores',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>Por controlador
       </div>
-      <div class="nav-item" onclick="goPage('operacoes',this)">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Operações
-      </div>
       <div class="nav-item" onclick="goPage('alertas',this)">
         <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Alertas<span class="nav-badge" id="alert-badge" style="display:none"></span>
@@ -349,35 +346,6 @@ tr.row-new td:first-child::before{content:'⭐ ';font-size:10px}
       <div id="ctrl-body" style="display:none"></div>
     </div>
 
-    <!-- OPERAÇÕES -->
-    <div class="page" id="page-operacoes">
-      <div class="page-header"><div><div class="page-title">Operações</div><div class="page-sub">Títulos elegíveis (excluídos CR=BG e tipos ADC/CTR/DES/OUT e bloqueados)</div></div></div>
-      <div class="section"><div class="section-body">
-        <div id="ops-empty" class="empty">Carregue as planilhas primeiro</div>
-        <div id="ops-cnt" style="display:none">
-          <div class="filters">
-            <select id="f-hist" onchange="renderOps()"><option value="">Todos os históricos</option></select>
-            <select id="f-conf" onchange="renderOps()"><option value="">Todos (CONF)</option><option value="C">C — Confirmado</option><option value="P">P — Pendente</option></select>
-            <select id="f-prazo" onchange="renderOps()"><option value="">Todos os prazos</option><option value="ok">Dentro do prazo</option><option value="alerta">Alerta prazo</option><option value="vencido">Prazo vencido</option><option value="sem">Sem prazo</option><option value="isento">Isentos</option><option value="noAto">Checar no ato</option></select>
-            <select id="f-alerta" onchange="renderOps()"><option value="">Todos</option><option value="sim">Com alerta</option><option value="nao">Sem alerta</option></select>
-            <select id="f-ctrl" onchange="renderOps()"><option value="">Todos os controladores</option></select>
-            <select id="f-grp" onchange="renderOps()"><option value="">Todos os grupos</option></select>
-            <input type="text" id="f-srch" placeholder="Buscar cedente..." oninput="renderOps()" style="width:150px">
-          </div>
-          <div class="twrap">
-            <table>
-              <thead><tr>
-                <th>Novo</th><th>Documento</th><th>CONF</th><th>Cedente</th><th>Sacado</th>
-                <th>Emissão</th><th>Valor (R$)</th><th>Histórico</th><th>Controlador</th>
-                <th>Grupo</th><th>Prazo</th><th>Alerta</th><th>Obs.</th>
-              </tr></thead>
-              <tbody id="ops-body"></tbody>
-            </table>
-          </div>
-          <div class="tcount" id="ops-info"></div>
-        </div>
-      </div></div>
-    </div>
 
     <!-- ALERTAS -->
     <div class="page" id="page-alertas">
@@ -842,7 +810,6 @@ function goPage(p,el){
       document.getElementById('ctrl-body').style.display='none';
     }
   }
-  if(p==='operacoes'&&TITS_ELEG.length)renderOps();
   if(p==='alertas'&&TITS_ELEG.length)renderAlertas();
   if(p==='historico'){renderHistorico();}
   if(p==='carteira'&&TITS_ELEG.length)renderCarteira();
@@ -991,7 +958,7 @@ function parseCedsArray(rows){
     const limitesArr=[];
     const _LCOLS=[[20,'BE','Boleto Especial','BE'],[21,'C','Comissionária','C'],[22,'T','Tranche','T'],[23,'BT','B.Esp+Tranche','B'],[24,'BG','Boleto Garantido','BG'],[25,'CL','Op. Clean','CL'],[26,'CE','Comis. c/Escrow','CE'],[27,'I','Intercompany','I'],[28,'BA','Barter','BA']];
     _LCOLS.forEach(([col,key,label,cr])=>{const val=parseVal(row[col]||0);limitesArr.push({key,label,cr,limite:val>0?val:null});});
-    CEDS[cpf]={
+    const novoReg2={
       nome:String(row[0]||'').trim(),
       operador:String(row[9]||'').trim(),
       controlador:String(row[11]||'').trim(),
@@ -1003,6 +970,14 @@ function parseCedsArray(rows){
       riscoAtual,
       limites:limitesArr,
     };
+    if(CEDS[cpf]){
+      novoReg2.limites.forEach((lim,i)=>{
+        const ant=CEDS[cpf].limites[i];
+        if(ant&&ant.limite!==null&&(lim.limite===null||ant.limite>lim.limite))lim.limite=ant.limite;
+      });
+      if((CEDS[cpf].riscoAtual||0)>novoReg2.riscoAtual)novoReg2.riscoAtual=CEDS[cpf].riscoAtual;
+    }
+    CEDS[cpf]=novoReg2;
   });
 }
 
@@ -1064,9 +1039,19 @@ function parseCedsFromArray(rows){
     const riscoAtual=parseVal(getH(row,'RISCO ATUAL')||byCol(row,'AD'));
     // Limites por tipo: colunas U(20) a AC(28) — cada coluna e um tipo fixo
     const limitesArr=[];
-    const _LCOLS=[[20,'BE','Boleto Especial','BE'],[21,'C','Comissionária','C'],[22,'T','Tranche','T'],[23,'BT','B.Esp+Tranche','B'],[24,'BG','Boleto Garantido','BG'],[25,'CL','Op. Clean','CL'],[26,'CE','Comis. c/Escrow','CE'],[27,'I','Intercompany','I'],[28,'BA','Barter','BA']];
-    _LCOLS.forEach(([col,key,label,cr])=>{const val=parseVal(row[col]||0);limitesArr.push({key,label,cr,limite:val>0?val:null});});
-    CEDS[cpf]={
+    const _LCOLS=[
+      ['LIMITE BOLETO ESPECIAL','BE','Boleto Especial','BE'],
+      ['LIMITE COMISSIONARIA','C','Comissionária','C'],
+      ['LIMITE TRANCHE','T','Tranche','T'],
+      ['LIMITE BOLETO ESPECIAL TRANCHE','BT','B.Esp+Tranche','B'],
+      ['LIMITE BOLETO GARANTIDO','BG','Boleto Garantido','BG'],
+      ['LIMITE OPERACAO CLEAN','CL','Op. Clean','CL'],
+      ['LIMITE COMISSARIA COM ESCROW','CE','Comis. c/Escrow','CE'],
+      ['LIMITE INTERCOMPANY','I','Intercompany','I'],
+      ['LIMITE BARTER','BA','Barter','BA'],
+    ];
+    _LCOLS.forEach(([colName,key,label,cr])=>{const val=parseVal(getH(row,colName)||row[{BE:20,C:21,T:22,BT:23,BG:24,CL:25,CE:26,I:27,BA:28}[key]]||0);limitesArr.push({key,label,cr,limite:val>0?val:null});});
+    const novoReg={
       nome:String(getH(row,'NOME CEDENTE')||getH(row,'NOME')||byCol(row,'A')||'').trim(),
       operador:String(getH(row,'OPERADOR')||byCol(row,'J')||'').trim(),
       controlador:String(getH(row,'CONTROLADOR')||byCol(row,'L')||'').trim(),
@@ -1078,6 +1063,16 @@ function parseCedsFromArray(rows){
       riscoAtual,
       limites:limitesArr,
     };
+    if(CEDS[cpf]){
+      // CPF duplicado: manter maior limite por modalidade
+      novoReg.limites.forEach((lim,i)=>{
+        const ant=CEDS[cpf].limites[i];
+        if(ant&&ant.limite!==null&&(lim.limite===null||ant.limite>lim.limite))lim.limite=ant.limite;
+      });
+      // Manter riscoAtual maior
+      if((CEDS[cpf].riscoAtual||0)>novoReg.riscoAtual)novoReg.riscoAtual=CEDS[cpf].riscoAtual;
+    }
+    CEDS[cpf]=novoReg;
   });
   console.log('parseCedsFromArray: carregados',Object.keys(CEDS).length);
 }
@@ -1172,7 +1167,7 @@ function buildAll(){
   }).length;
   const badge=document.getElementById('alert-badge');
   badge.style.display=nAlert>0?'inline':'none';badge.textContent=nAlert;
-  renderDash();renderFilters();renderOps();
+  renderDash();
   if(document.getElementById('page-controladores').classList.contains('active')){
     document.getElementById('ctrl-empty').style.display='none';
     document.getElementById('ctrl-body').style.display='block';
@@ -1606,69 +1601,7 @@ function renderControladores(){
   }).join('')}</div>`;
 }
 // ── OPERAÇÕES ──
-function renderFilters(){
-  // Mostrar apenas codigos padrao no filtro de historico
-  const HIST_VALIDOS=['COM', 'ISE', 'SER', 'SC', 'FRA', 'RET', 'NE', 'DEV', 'NPT', 'LSC', 'PC', 'REC', 'SUB', 'CONFIRMADO'];
-  const hists=[...new Set(TITS_ELEG.map(r=>String(r['HISTORICO']||gc(r,24)).trim().toUpperCase()).filter(v=>v&&v!=='NAN'&&HIST_VALIDOS.includes(v)))].sort();
-  document.getElementById('f-hist').innerHTML='<option value="">Todos os históricos</option>'+hists.map(h=>`<option>${h}</option>`).join('');
-  const ctrls=[...new Set(Object.values(CEDS).map(c=>c.controlador).filter(Boolean))].sort();
-  document.getElementById('f-ctrl').innerHTML='<option value="">Todos os controladores</option>'+ctrls.map(c=>`<option>${c}</option>`).join('');
-  const grps=[...new Set(Object.values(CEDS).map(c=>c.grupo).filter(Boolean))].sort();
-  document.getElementById('f-grp').innerHTML='<option value="">Todos os grupos</option>'+grps.map(g=>`<option>${g}</option>`).join('');
-}
 
-function renderOps(){
-  const fH=document.getElementById('f-hist').value;
-  const fC=document.getElementById('f-conf').value;
-  const fP=document.getElementById('f-prazo').value;
-  const fA=document.getElementById('f-alerta').value;
-  const fCt=document.getElementById('f-ctrl').value;
-  const fG=document.getElementById('f-grp').value;
-  const fS=document.getElementById('f-srch').value.toLowerCase();
-  const PL={ok:'No prazo',alerta:'Alerta',vencido:'Vencido',sem:'Sem config.',isento:'Isento',noAto:'⚡ No ato'};
-  const PC={ok:'bg',alerta:'ba',vencido:'br',sem:'bgr',isento:'bb',noAto:'bo'};
-  const rows=TITS_ELEG.map((r,i)=>({r,i,a:_alertMap[i]||{alertas:[],nivel:'ok'}})).filter(({r,a})=>{
-    const h=String(r['HISTORICO']||gc(r,24)).trim();
-    const c=String(r['CONF']||gc(r,1)).trim().toUpperCase();
-    const ci=getCed(r);
-    if(fH&&h!==fH)return false;
-    if(fC&&c!==fC)return false;
-    if(fP&&prazoSt(r)!==fP)return false;
-    if(fA==='sim'&&a.nivel!=='bloqueio')return false;
-    if(fA==='nao'&&a.nivel==='bloqueio')return false;
-    if(fCt&&ci.controlador!==fCt)return false;
-    if(fG&&ci.grupo!==fG)return false;
-    if(fS&&!String(r['CEDENTE']||gc(r,8)).toLowerCase().includes(fS))return false;
-    return true;
-  });
-  document.getElementById('ops-body').innerHTML=rows.slice(0,500).map(({r,a})=>{
-    const ci=getCed(r);const ps=prazoSt(r);
-    const cf=String(r['CONF']||gc(r,1)).trim().toUpperCase();
-    const h=String(r['HISTORICO']||gc(r,24)).trim();
-    const cpfC=normCPF(r['CPF/CNPJ CEDENTE']||gc(r,7));
-    const novo=isNovo(cpfC);
-    const obsKey='tit_'+String(r['DOCUMENTO']||gc(r,0)||'').replace(/\s/g,'_');
-    const obsCount=OBSERVACOES[obsKey]?OBSERVACOES[obsKey].length:0;
-    return`<tr class="${a.nivel==='bloqueio'?'row-alert':''}">
-      <td>${novo?'<span style="color:#a78bfa;font-size:14px">★</span>':'—'}</td>
-      <td title="${r['DOCUMENTO']||''}">${r['DOCUMENTO']||'—'}</td>
-      <td><span class="badge ${cf==='C'?'bg':cf==='P'?'ba':'bgr'}">${cf||'—'}</span></td>
-      <td title="${r['CEDENTE']||gc(r,8)}">${r['CEDENTE']||gc(r,8)||'—'}</td>
-      <td title="${r['SACADO']||gc(r,6)}">${r['SACADO']||gc(r,6)||'—'}</td>
-      <td>${fmtD(r['DATA EMISSÃO']||gc(r,10))}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtVal(r['VALOR(R$)']||gc(r,18))}</td>
-      <td><span class="badge ${HCL[h.toUpperCase()]||'bgr'}">${h||'—'}</span></td>
-      <td>${ci.controlador||'—'}</td>
-      <td title="${ci.grupo}">${ci.grupo||'—'}</td>
-      <td><span class="badge ${PC[ps]}">${PL[ps]}</span></td>
-      <td>${a.alertas.length?`<span class="badge br" title="${a.alertas.join(' | ')}">⚠ ${a.alertas.length}</span>`:'<span class="badge bg">✓</span>'}</td>
-      <td><button class="obs-btn" onclick="openObs('${obsKey}','${String(r['DOCUMENTO']||gc(r,0)||'').replace(/'/g,'')}')">${obsCount?'💬 '+obsCount:'+'} obs</button></td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text2)">Nenhum registro</td></tr>';
-  document.getElementById('ops-cnt').style.display='block';
-  document.getElementById('ops-empty').style.display='none';
-  document.getElementById('ops-info').textContent=`Exibindo ${Math.min(rows.length,500)} de ${rows.length} registros`;
-}
 
 // ── ALERTAS ──
 function renderAlertas(){
@@ -2072,13 +2005,9 @@ function renderCarteira(){
   // Monta painel de limites por tipo para um grupo (só tipos com titulos)
   function mkLimites(g){
     const LCOLS=[{key:'BE',label:'Boleto Especial',cr:'BE'},{key:'C',label:'Comissionária',cr:'C'},{key:'T',label:'Tranche',cr:'T'},{key:'BT',label:'B.Esp+Tranche',cr:'B'},{key:'BG',label:'Boleto Garantido',cr:'BG'},{key:'CL',label:'Op. Clean',cr:'CL'},{key:'CE',label:'Comis. c/Escrow',cr:'CE'},{key:'I',label:'Intercompany',cr:'I'},{key:'BA',label:'Barter',cr:'BA'}];
-    const tiposNoGrp=new Set(Object.keys(g.tipo));
-    // Para cada tipo com titulos no grupo, pegar o maior limite entre os cedentes
-    const tiposComTitulos=LCOLS.filter(lc=>tiposNoGrp.has(lc.cr)||tiposNoGrp.has(lc.key));
-    if(!tiposComTitulos.length)return'';
     // Consolidar limites por tipo (maior valor entre cedentes do grupo)
     const limMap={};
-    tiposComTitulos.forEach(lc=>{limMap[lc.key]={...lc,limite:null,usado:g.cr[lc.cr]?.val||g.cr[lc.key]?.val||0};});
+    LCOLS.forEach(lc=>{limMap[lc.key]={...lc,limite:null,usado:g.cr[lc.cr]?.val||g.cr[lc.key]?.val||0};});
     g.cpfs.forEach(cpf=>{
       const ced=CEDS[cpf];if(!ced||!ced.limites)return;
       ced.limites.forEach(({key,limite})=>{
@@ -2087,29 +2016,48 @@ function renderCarteira(){
           limMap[key].limite=limite;
       });
     });
-    const entries=Object.values(limMap).sort((a,b)=>b.usado-a.usado);
+    // Mostrar modalidades com limite cadastrado OU com títulos em uso
+    const entries=Object.values(limMap).filter(m=>m.limite!==null||m.usado>0).sort((a,b)=>b.usado-a.usado);
+    if(!entries.length)return'';
     return`<div style="margin-bottom:10px">
       <div style="font-size:10px;color:var(--text2);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Limites por tipo de operação</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${entries.map(({key,label,cr,limite,usado})=>{
           const cor=CR_CORES[cr]||CR_CORES[key]||'#9294a0';
           const temLimite=limite!==null&&limite>0;
+          const livre=temLimite?Math.max(limite-usado,0):null;
           const pct=temLimite?Math.min(Math.round(usado/limite*100),999):0;
           const corBarra=pct>=100?'#f05252':pct>=80?'#f5a623':'#2dd4a0';
-          return`<div style="background:var(--bg3);border:1px solid ${pct>=100?'rgba(240,82,82,0.4)':pct>=80?'rgba(245,166,35,0.3)':'var(--border)'};border-radius:var(--radius-sm);padding:8px 10px;min-width:150px;flex:1">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          const corLivre=pct>=100?'var(--red)':pct>=80?'var(--amber)':'var(--green)';
+          return`<div style="background:var(--bg3);border:1px solid ${pct>=100?'rgba(240,82,82,0.4)':pct>=80?'rgba(245,166,35,0.3)':'var(--border)'};border-radius:var(--radius-sm);padding:8px 10px;min-width:170px;flex:1">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
               <div style="width:20px;height:20px;border-radius:4px;background:${cor};display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="color:white;font-size:8px;font-weight:700">${key}</span></div>
               <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
               ${pct>=100?'<span style="font-size:9px;color:#f05252;font-weight:700">ESTOURADO</span>':pct>=80?'<span style="font-size:9px;color:#f5a623;font-weight:600">⚠ '+pct+'%</span>':''}
             </div>
-            <div style="font-size:10px;color:var(--text2);margin-bottom:${temLimite?'4':'0'}px">
-              <span>Utilizado: <span style="color:var(--text);font-weight:500;font-family:'DM Mono',monospace">${fmtVal(usado)}</span></span>
-              ${temLimite?`<span style="float:right">Limite: <span style="font-family:'DM Mono',monospace">${fmtVal(limite)}</span></span>`:'<span style="float:right;color:var(--text3);font-style:italic">sem limite cadastrado</span>'}
+            ${temLimite?`
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px;background:var(--bg4);border-radius:6px;padding:5px 6px">
+              <div style="text-align:center">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:1px">Limite</div>
+                <div style="font-size:10px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text)">${fmtVal(limite)}</div>
+              </div>
+              <div style="text-align:center;border-left:1px solid var(--border);border-right:1px solid var(--border)">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:1px">Utilizado</div>
+                <div style="font-size:10px;font-weight:600;font-family:'DM Mono',monospace;color:var(--amber)">${fmtVal(usado)}</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:9px;color:var(--text3);margin-bottom:1px">Livre</div>
+                <div style="font-size:10px;font-weight:600;font-family:'DM Mono',monospace;color:${corLivre}">${fmtVal(livre)}</div>
+              </div>
             </div>
-            ${temLimite?`<div style="background:var(--bg4);border-radius:100px;height:5px;overflow:hidden;margin-top:2px">
+            <div style="background:var(--bg4);border-radius:100px;height:5px;overflow:hidden">
               <div style="width:${Math.min(pct,100)}%;height:100%;background:${corBarra};border-radius:100px"></div>
             </div>
-            <div style="font-size:9px;color:${corBarra};margin-top:3px;text-align:right;font-weight:500">${pct}% do limite</div>`:''}
+            <div style="font-size:9px;color:${corBarra};margin-top:2px;text-align:right;font-weight:500">${pct}% utilizado</div>`
+            :`<div style="font-size:10px;color:var(--text2);display:flex;justify-content:space-between">
+              <span>Utilizado: <span style="color:var(--text);font-weight:500;font-family:'DM Mono',monospace">${fmtVal(usado)}</span></span>
+              <span style="color:var(--text3);font-style:italic">sem limite cadastrado</span>
+            </div>`}
           </div>`;
         }).join('')}
       </div>
@@ -2471,7 +2419,7 @@ async function addObs(){
   OBSERVACOES[obsContext.key].push(obs);
   await sAppend('Observacoes!A:D',[[obsContext.key,txt,currentUser.nome,obs.data]]);
   document.getElementById('obs-input').value='';
-  renderObsBody();renderOps();renderTimeline();
+  renderObsBody();renderTimeline();
 }
 async function deleteObs(key,idx){
   if(currentUser.perfil!=='admin')return;
@@ -2482,7 +2430,7 @@ async function deleteObs(key,idx){
   Object.entries(OBSERVACOES).forEach(([k,obs])=>obs.forEach(o=>rows.push([k,o.texto,o.usuario,o.data])));
   HISTORICO_DIARIO.forEach(h=>rows.push(['HISTORICO',h.cedente,h.usuario,h.data]));
   await sSet('Observacoes!A1',rows);
-  renderObsBody();renderOps();
+  renderObsBody();
 }
 
 // ── CONFIG ──
@@ -2617,41 +2565,7 @@ async function addUser(){USERS.push({nome:'Novo usuário',perfil:'operadora',pin
 async function saveUsersSheets(){const rows=[['NOME','PERFIL','PIN','COR','INICIAIS','EMAIL_GOOGLE']];USERS.forEach(u=>rows.push([u.nome,u.perfil,u.pin,u.cor,u.iniciais,u.email||'']));await sSet('Usuarios!A1',rows);}
 
 
-async function loadCedentesAuto(){
-  const el=document.getElementById('ul-ced2');
-  try{
-    if(el)el.textContent='Carregando...';
-    const r=await fetch('https://script.google.com/macros/s/AKfycbziamdL7oJA2xRmazUpn2jLauUztCecBGPVgGG7PUogqnlsxfKOoUvWQZEfJCWtRndP/exec?sheet=CadastroCedentes');
-    const data=await r.json();
-    CEDS={};
-    data.slice(1).forEach(row=>{
-      if(!row||!row[1])return;
-      const cpf=normCPF(row[1]);
-      if(!cpf)return;
-      const riscoAtual=parseVal(row[29]||0);
-      CEDS[cpf]={
-        nome:String(row[0]||'').trim(),
-        operador:String(row[9]||'').trim(),
-        controlador:String(row[11]||'').trim(),
-        grupo:String(row[16]||'').trim(),
-        bloqueado:false,semRisco:(riscoAtual===0),
-        dataCad:String(row[13]||'').trim(),
-        primeiraOp:String(row[18]||'').trim(),
-        riscoAtual
-      };
-    });
-    const tot=Object.keys(CEDS).length;
-    if(el){el.textContent=tot+' cedentes';el.style.color='var(--green)';document.getElementById('uc-ced2').classList.add('done');}
-    console.log('Cedentes carregados:',tot);
-    // Marcar PROSPER como isento automaticamente
-    const prospCpf=normCPF('36.213.493/0001-95');
-    if(CEDS[prospCpf])PRAZOS_GRUPO[CEDS[prospCpf].grupo]=Object.assign(PRAZOS_GRUPO[CEDS[prospCpf].grupo]||{pedido:'',entrega:''},{ isento:true });
-    // buildAll será chamado após loadConfig e loadTitulosSheets
-  }catch(e){
-    console.error('loadCedentesAuto erro:',e);
-    if(el)el.textContent='Carregar manualmente';
-  }
-}
+// loadCedentesAuto duplicata removida
 
 
 function renderGraficoContatos(){
